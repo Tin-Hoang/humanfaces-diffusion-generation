@@ -113,5 +113,4 @@ target-version = "py310"
 
 # UV package management - compatible with standard pyproject.toml
 [tool.uv]
-# UV-specific settings
-exclude = []
+# TBD
