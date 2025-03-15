@@ -1,0 +1,104 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools-scm>=6.2", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "diffusion-models"
+# Remove static version - will be derived from git
+dynamic = ["version"]
+description = "Diffusion models implementation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+keywords = ["diffusion", "machine-learning", "deep-learning"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Main dependencies
+dependencies = [
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "numpy>=1.22.0",
+    "matplotlib>=3.5.0",
+    "tqdm>=4.64.0",
+    "pillow>=9.0.0",
+    "scipy>=1.8.0",
+    "diffusers>=0.16.0",
+    "tensorboard>=2.10.0",
+    "wandb>=0.13.0",
+]
+
+# Development and optional dependencies
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "ruff>=0.0.254",
+]
+notebook = [
+    "jupyterlab>=4.0.0",  # More modern, feature-rich interface compared to classic Jupyter
+    "ipywidgets>=8.0.0",  # For interactive widgets in notebooks
+]
+
+# Replace hatch-specific config with setuptools config
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = {find = {where = ["src"]}}
+
+# Configure setuptools-scm for git-based versioning
+[tool.setuptools_scm]
+write_to = "src/diffusion_models/_version.py"
+version_scheme = "post-release"
+local_scheme = "node-and-date"
+fallback_version = "0.0.0"
+
+# Black configuration
+[tool.black]
+line-length = 120
+target-version = ["py38", "py39", "py310"]
+include = '\.pyi?$'
+
+# isort configuration
+[tool.isort]
+profile = "black"
+line_length = 120
+
+# mypy configuration
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+# pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "--cov=src"
+
+# ruff configuration
+[tool.ruff]
+line-length = 120
+select = ["E", "F", "I", "B"]
+ignore = []
+target-version = "py38"
+
+# UV package management - compatible with standard pyproject.toml
+# UV will automatically use this for dependency resolution
+[tool.uv]
+# UV reads dependencies from the standard [project.dependencies] section
+# No special configuration is needed, but we can add UV-specific settings here
+# exclude = []
