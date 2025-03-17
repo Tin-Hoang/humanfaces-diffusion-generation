@@ -48,7 +48,11 @@ from datasets import load_dataset
 
 # SurreyLearn Human Faces dataset
 dataset = load_dataset("imagefolder", data_dir=config.train_dir, split="train")
-val_dataset = load_dataset("imagefolder", data_dir=config.val_dir, split="validation")
+val_dataset = load_dataset("imagefolder", data_dir=config.val_dir, split="train")
+
+# Print the number of images in the dataset
+print(f"Number of images in the training dataset: {len(dataset)}")
+print(f"Number of images in the validation dataset: {len(val_dataset)}")
 
 """<Tip>
 
