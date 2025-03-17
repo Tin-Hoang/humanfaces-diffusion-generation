@@ -47,6 +47,10 @@ For convenience, create a `TrainingConfig` class containing the training hyperpa
 
 from dataclasses import dataclass
 from datetime import datetime
+from torchmetrics.image.fid import FrechetInceptionDistance
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from PIL import Image
 
 
 @dataclass
@@ -62,11 +66,17 @@ class TrainingConfig:
     save_model_epochs: int = 10
     mixed_precision: str = "fp16"  # `no` for float32, `fp16` for automatic mixed precision
     output_dir: str = f"ddpm-celebahq-128-{datetime.now().strftime('%Y%m%d_%H%M%S')}"  # the model name locally and on the HF Hub
+    
+    train_dir: str = "data/CelebA-HQ-split/train_27000"  # Add validation directory
+    dataset_name = "celeba_hq_128_27000train"
 
     push_to_hub: bool = False  # whether to upload the saved model to the HF Hub
     hub_private_repo: bool = False
     overwrite_output_dir: bool = True  # overwrite the old model when re-running the notebook
     seed: int = 42
+    val_dir: str = "data/CelebA-HQ-split/test_300"  # Add validation directory
+    val_n_samples: int = 100  # Number of samples to generate for FID calculation
+    use_wandb: bool = True  # Whether to use WandB logging
 
 config = TrainingConfig()
 
@@ -82,8 +92,8 @@ from datasets import load_dataset
 # dataset = load_dataset(config.dataset_name, split="train")
 
 # SurreyLearn Human Faces dataset
-config.dataset_name = "celeba_hq_256_2665images"
-dataset = load_dataset("imagefolder", data_dir="celeba_hq_256", split="train")
+dataset = load_dataset("imagefolder", data_dir=config.train_dir, split="train")
+val_dataset = load_dataset("imagefolder", data_dir=config.val_dir, split="validation")
 
 """<Tip>
 
@@ -133,6 +143,7 @@ dataset.set_transform(transform)
 import torch
 
 train_dataloader = torch.utils.data.DataLoader(dataset, batch_size=config.train_batch_size, shuffle=True)
+val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=config.eval_batch_size, shuffle=False)
 
 """## Create a UNet2DModel
 
@@ -232,11 +243,21 @@ def make_grid(images, rows, cols):
 
 
 def evaluate(config, epoch, pipeline):
-    # Sample some images from random noise (this is the backward diffusion process).
-    # The default pipeline output type is `List[PIL.Image]`
+    """Evaluate the model and generate sample images.
+    
+    Args:
+        config: Training configuration
+        epoch: Current epoch number
+        pipeline: DDPM pipeline for generating images
+        
+    Returns:
+        List of generated image tensors
+    """
+    # Generate sample images
+    generator = torch.manual_seed(config.seed)
     images = pipeline(
         batch_size=config.eval_batch_size,
-        generator=torch.manual_seed(config.seed),
+        generator=generator,
     ).images
 
     # Make a grid out of the images
@@ -247,7 +268,12 @@ def evaluate(config, epoch, pipeline):
     os.makedirs(test_dir, exist_ok=True)
     image_grid.save(f"{test_dir}/{epoch:04d}.png")
     # Log evaluate image to Wandb
-    wandb.log({"validation/grid_images": wandb.Image(image_grid), "validation/epoch": epoch})
+    wandb.log(
+        {"validation/grid_images": wandb.Image(image_grid), 
+         "validation/epoch": epoch}, 
+         step=epoch)
+
+    return images
 
 """Now you can wrap all these components together in a training loop with 🤗 Accelerate for easy TensorBoard logging, gradient accumulation, and mixed precision training. To upload the model to the Hub, write a function to get your repository name and information and then push it to the Hub.
 
@@ -273,6 +299,58 @@ def get_full_repo_name(model_id: str, organization: str = None, token: str = Non
         return f"{username}/{model_id}"
     else:
         return f"{organization}/{model_id}"
+
+
+def calculate_fid(pipeline, val_dataloader, device, num_samples=50):
+    """Calculate FID score between generated samples and validation set.
+    
+    Args:
+        pipeline: The DDPM pipeline for generating images
+        val_dataloader: DataLoader for validation set
+        device: Device to run calculation on
+        num_samples: Number of samples to generate (defaults to validation set size)
+    
+    Returns:
+        FID score
+    """
+    fid = FrechetInceptionDistance(normalize=True).to(device)
+    
+    # If num_samples not specified, use validation set size
+    if num_samples is None:
+        num_samples = len(val_dataloader.dataset)
+    
+    with torch.no_grad():
+        # Generate images using pipeline
+        remaining_samples = num_samples
+        while remaining_samples > 0:
+            batch_size = min(val_dataloader.batch_size, remaining_samples)
+            # Generate images using the pipeline
+            samples = pipeline(
+                batch_size=batch_size,
+                generator=torch.manual_seed(42),
+            ).images
+            
+            # Convert PIL images to tensors and normalize to [-1, 1]
+            sample_tensors = torch.stack([
+                preprocess(image) for image in samples
+            ]).to(device)
+            
+            # Convert from [-1, 1] to [0, 1] range for FID
+            sample_tensors = (sample_tensors * 0.5 + 0.5).clamp(0, 1)
+            fid.update(sample_tensors, real=False)
+            
+            remaining_samples -= batch_size
+        
+        # Add validation images to FID
+        for batch in val_dataloader:
+            real_images = batch["images"].to(device)
+            # Convert from [-1, 1] to [0, 1] range for FID
+            real_images = (real_images * 0.5 + 0.5).clamp(0, 1)
+            fid.update(real_images, real=True)
+    
+    # Calculate FID score
+    fid_score = float(fid.compute())
+    return fid_score
 
 
 def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler):
@@ -334,13 +412,14 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
 
             progress_bar.update(1)
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step}
-            # Push train logs to wandb
-            wandb.log({
-                        "train/batch_loss": loss.detach().item(),
-                        "train/lr": lr_scheduler.get_last_lr()[0],
-                        "train/epoch": epoch
-                      },
-                      step=global_step)
+            if config.use_wandb:
+                # Push train logs to wandb
+                wandb.log({
+                            "train/batch_loss": loss.detach().item(),
+                            "train/lr": lr_scheduler.get_last_lr()[0],
+                            "train/epoch": epoch
+                        },
+                        step=global_step)
 
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
@@ -351,7 +430,25 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
             pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
 
             if (epoch + 1) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:
+                # First run evaluation
                 evaluate(config, epoch, pipeline)
+                
+                print(f"Calculating FID score at epoch {epoch + 1}...")
+                fid_score = calculate_fid(
+                    pipeline=pipeline,
+                    val_dataloader=val_dataloader,
+                    device=accelerator.device,
+                    num_samples=config.val_n_samples
+                )
+                print(f"FID Score: {fid_score:.2f}")
+                
+                # Log to WandB
+                if config.use_wandb:
+                    wandb.log({
+                            "validation/fid_score": fid_score
+                        }, 
+                        step=epoch
+                    )
 
             if (epoch + 1) % config.save_model_epochs == 0 or epoch == config.num_epochs - 1:
                 if config.push_to_hub:
@@ -366,19 +463,21 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                     "loss": loss.item(),
                 }, os.path.join(config.output_dir, "optimizer", "optimizer.pth"))
 
+
 """Phew, that was quite a bit of code! But you're finally ready to launch the training with 🤗 Accelerate's [notebook_launcher](https://huggingface.co/docs/accelerate/main/en/package_reference/launchers#accelerate.notebook_launcher) function. Pass the function the training loop, all the training arguments, and the number of processes (you can change this value to the number of GPUs available to you) to use for training:"""
 
-# Init Wandb logger
-import wandb
+if config.use_wandb:
+    # Init Wandb logger
+    import wandb
 
-wandb.finish()  # Finish previous if existed
+    wandb.finish()  # Finish previous if existed
 
-run = wandb.init(
-    # Set the project where this run will be logged
-    project="EEEM068_Diffusion_Models",
-    # Track hyperparameters and run metadata
-    config=config,
-)
+    run = wandb.init(
+        # Set the project where this run will be logged
+        project="EEEM068_Diffusion_Models",
+        # Track hyperparameters and run metadata
+        config=config,
+    )
 
 from accelerate import notebook_launcher
 
@@ -388,10 +487,10 @@ notebook_launcher(train_loop, args, num_processes=1)
 
 """Once training is complete, take a look at the final 🦋 images 🦋 generated by your diffusion model!"""
 
-import glob
+# import glob
 
-sample_images = sorted(glob.glob(f"{config.output_dir}/samples/*.png"))
-Image.open(sample_images[-1])
+# sample_images = sorted(glob.glob(f"{config.output_dir}/samples/*.png"))
+# Image.open(sample_images[-1])
 
 """<h2 style='text-align: center;'>Next Steps</h2>
 
