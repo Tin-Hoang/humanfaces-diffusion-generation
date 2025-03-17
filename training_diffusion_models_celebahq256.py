@@ -223,6 +223,7 @@ def evaluate(config, epoch, pipeline):
     images = pipeline(
         batch_size=config.eval_batch_size,
         generator=generator,
+        num_inference_steps=config.num_train_timesteps  # Use same number of steps for inference
     ).images
 
     # Make a grid out of the images
@@ -294,6 +295,7 @@ def calculate_fid(pipeline, val_dataloader, device, num_samples=50):
             samples = pipeline(
                 batch_size=batch_size,
                 generator=torch.manual_seed(42),
+                num_inference_steps=config.num_train_timesteps  # Use same number of steps for inference
             ).images
             
             # Convert PIL images to tensors and normalize to [-1, 1]
@@ -396,7 +398,6 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
             pipeline = DDPMPipeline(
                 unet=accelerator.unwrap_model(model),
                 scheduler=noise_scheduler,
-                num_inference_steps=config.num_train_timesteps  # Use same number of steps for inference
             )
 
             if (epoch + 1) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:
