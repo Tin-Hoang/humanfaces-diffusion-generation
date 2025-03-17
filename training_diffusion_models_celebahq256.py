@@ -21,7 +21,7 @@ class TrainingConfig:
     mixed_precision: str = "fp16"  # `no` for float32, `fp16` for automatic mixed precision
     output_dir: str = f"ddpm-celebahq-128-27000train-{datetime.now().strftime('%Y%m%d_%H%M%S')}"  # the model name locally and on the HF Hub
     
-    dataset_name = "celeba_hq_128_27000train"
+    dataset_name: str = "celeba_hq_128_27000train"
     train_dir: str = "data/CelebA-HQ-split/train_27000"  # Add validation directory
     val_dir: str = "data/CelebA-HQ-split/test_300"  # Add validation directory
     val_n_samples: int = 100  # Number of samples to generate for FID calculation
