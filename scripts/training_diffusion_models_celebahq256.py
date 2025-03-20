@@ -42,9 +42,6 @@ You can easily load the [Smithsonian Butterflies](https://huggingface.co/dataset
 
 from datasets import load_dataset
 
-# The butterfly dataset
-# config.dataset_name = "huggan/smithsonian_butterflies_subset"
-# dataset = load_dataset(config.dataset_name, split="train")
 
 # SurreyLearn Human Faces dataset
 dataset = load_dataset("imagefolder", data_dir=config.train_dir, split="train")
