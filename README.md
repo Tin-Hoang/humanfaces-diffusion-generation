@@ -71,11 +71,6 @@ The UI provides two tabs:
 - Single Image Generation: Generate one image at a time with custom noise input
 - Batch Generation: Generate multiple images with specified parameters
 
-Default settings:
-- Pipeline: DDIM (faster generation)
-- Number of steps: 100 (configurable)
-- Batch size: 4 (for batch generation)
-
 #### 2. Generation using the command line script:
 
 Input arguments:
@@ -97,18 +92,18 @@ python scripts/generate.py \
     --num-images 32 \
     --output-dir "outputs/samples/ddim_fast" \
     --batch-size 8 \
-    --seed 123
+    --seed 42
 
 # High quality DDPM generation (slower)
 python scripts/generate.py \
     --checkpoint "checkpoints/ddpm-celebahq-128-27000train-20250316_141247" \
     --pipeline ddpm \
-    --num-inference-steps 2000 \
+    --num-inference-steps 1000 \
     --num-images 100 \
     --output-dir "outputs/samples/ddpm_high_quality" \
     --batch-size 4 \
     --device cuda \
-    --seed 456
+    --seed 42
 ```
 
 ### Using the Notebook
