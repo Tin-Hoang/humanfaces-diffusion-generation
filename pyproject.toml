@@ -35,6 +35,7 @@ dependencies = [
     "scipy>=1.8.0",
     "tensorboard>=2.10.0",
     "wandb>=0.13.0",
+    "gradio>=5.22.0",
 ]
 
 # Development and optional dependencies
