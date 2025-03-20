@@ -53,38 +53,62 @@ EEEM068-Diffusion-Models/
 
 ### Training a Diffusion Model
 
-You can train a diffusion model using the training script:
+TBD
 
+### Image Generation
+
+You can generate images in two ways:
+
+#### 1. Generation using the Gradio UI:
 ```bash
-# Basic training
-python scripts/train.py --data_path data/processed --output_dir outputs/checkpoints
+python ui/app.py
 
-# With additional parameters
-python scripts/train.py --data_path data/processed --batch_size 64 --epochs 200 --lr 1e-4
+# Or using UV for dependency management
+uv run ui/app.py
 ```
 
-Alternatively, you can use the main entry point:
+The UI provides two tabs:
+- Single Image Generation: Generate one image at a time with custom noise input
+- Batch Generation: Generate multiple images with specified parameters
+
+Default settings:
+- Pipeline: DDIM (faster generation)
+- Number of steps: 100 (configurable)
+- Batch size: 4 (for batch generation)
+
+#### 2. Generation using the command line script:
+
+Input arguments:
+- `--checkpoint`: Path to the model checkpoint directory
+- `--pipeline`: Pipeline type (`ddpm` or `ddim`)
+- `--num-inference-steps`: Number of denoising steps (default: 100 for DDIM, 1000 for DDPM)
+- `--num-images`: Number of images to generate
+- `--output-dir`: Directory to save generated images
+- `--batch-size`: Number of images to generate in parallel
+- `--device`: Device to use (`cuda` or `cpu`)
+- `--seed`: Random seed for reproducibility
 
 ```bash
-python main.py train --data_path data/processed --output_dir outputs/checkpoints
-```
+# Basic DDIM generation (faster)
+python scripts/generate.py \
+    --checkpoint "checkpoints/ddpm-celebahq-128-27000train-20250316_141247" \
+    --pipeline ddim \
+    --num-inference-steps 100 \
+    --num-images 32 \
+    --output-dir "outputs/samples/ddim_fast" \
+    --batch-size 8 \
+    --seed 123
 
-### Generating Samples
-
-To generate samples from a trained model:
-
-```bash
-# Basic sampling
-python scripts/sample.py --checkpoint outputs/checkpoints/model_latest.pt --output_dir outputs/samples
-
-# With additional parameters
-python scripts/sample.py --checkpoint outputs/checkpoints/model_latest.pt --num_images 16 --image_size 256
-```
-
-Or using the main entry point:
-
-```bash
-python main.py sample --checkpoint outputs/checkpoints/model_latest.pt
+# High quality DDPM generation (slower)
+python scripts/generate.py \
+    --checkpoint "checkpoints/ddpm-celebahq-128-27000train-20250316_141247" \
+    --pipeline ddpm \
+    --num-inference-steps 2000 \
+    --num-images 100 \
+    --output-dir "outputs/samples/ddpm_high_quality" \
+    --batch-size 4 \
+    --device cuda \
+    --seed 456
 ```
 
 ### Using the Notebook
@@ -98,10 +122,6 @@ jupyter lab
 
 Then navigate to `notebooks/` directory and open the relevant notebook.
 
-## Contributing
+## License
 
-1. Fork the repository
-2. Create your feature branch: `git checkout -b feature/amazing-feature`
-3. Commit your changes: `git commit -m 'Add some amazing feature'`
-4. Push to the branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+This project is part of the EEEM068 Diffusion Models coursework at the University of Surrey.
