@@ -25,7 +25,7 @@ def generate_random_noise():
     return noise
 
 
-def generate_image(noise_image, pipeline_type="ddpm", num_steps=1000, checkpoint_dir="checkpoints/ddpm-celebahq-128-27000train-20250316_141247"):
+def generate_image(noise_image, pipeline_type="ddim", num_steps=100, checkpoint_dir="checkpoints/ddpm-celebahq-128-27000train-20250316_141247"):
     """Generate an image from noise using the diffusion model."""
     # Convert normalized display image back to normal distribution
     noise = (noise_image * 2) - 1
@@ -56,8 +56,8 @@ def generate_image(noise_image, pipeline_type="ddpm", num_steps=1000, checkpoint
 
 def generate_batch_images(
     num_images: int,
-    pipeline_type: str = "ddpm",
-    num_steps: int = 1000,
+    pipeline_type: str = "ddim",
+    num_steps: int = 100,
     checkpoint_dir: str = "checkpoints/ddpm-celebahq-128-27000train-20250316_141247",
     batch_size: int = 4,
 ):
@@ -123,15 +123,14 @@ def create_ui():
                         with gr.Row():
                             pipeline_type = gr.Radio(
                                 choices=["ddpm", "ddim"],
-                                value="ddpm",
+                                value="ddim",
                                 label="Pipeline Type"
                             )
-                            num_steps = gr.Slider(
-                                minimum=50,
-                                maximum=1000,
+                            num_steps = gr.Number(
                                 value=100,
-                                step=50,
-                                label="Number of Steps"
+                                label="Number of Steps",
+                                precision=0,
+                                minimum=1,
                             )
                         
                         generate_btn = gr.Button("Generate", variant="primary")
@@ -158,8 +157,8 @@ def create_ui():
                 # Examples
                 gr.Examples(
                     examples=[
-                        [generate_random_noise(), "ddpm", 1000, "checkpoints/ddpm-celebahq-128-27000train-20250316_141247"],
                         [generate_random_noise(), "ddim", 100, "checkpoints/ddpm-celebahq-128-27000train-20250316_141247"],
+                        [generate_random_noise(), "ddpm", 1000, "checkpoints/ddpm-celebahq-128-27000train-20250316_141247"],
                     ],
                     inputs=[noise_image, pipeline_type, num_steps, checkpoint_dir],
                     outputs=output_image,
@@ -172,12 +171,11 @@ def create_ui():
                 with gr.Row():
                     # Left side - Input
                     with gr.Column():
-                        num_images = gr.Slider(
-                            minimum=1,
-                            maximum=32,
+                        num_images = gr.Number(
                             value=4,
-                            step=1,
-                            label="Number of Images"
+                            label="Number of Images",
+                            precision=0,
+                            minimum=1,
                         )
                         
                         batch_checkpoint_dir = gr.Textbox(
@@ -189,23 +187,22 @@ def create_ui():
                         with gr.Row():
                             batch_pipeline_type = gr.Radio(
                                 choices=["ddpm", "ddim"],
-                                value="ddpm",
+                                value="ddim",
                                 label="Pipeline Type"
                             )
-                            batch_num_steps = gr.Slider(
-                                minimum=50,
-                                maximum=1000,
+                            batch_num_steps = gr.Number(
                                 value=100,
-                                step=50,
-                                label="Number of Steps"
+                                label="Number of Steps",
+                                precision=0,
+                                minimum=1,
                             )
                         
                         batch_size = gr.Slider(
-                            minimum=1,
-                            maximum=8,
                             value=4,
-                            step=1,
-                            label="Batch Size"
+                            label="Batch Size",
+                            minimum=1,
+                            maximum=64,
+                            step=1
                         )
                         
                         batch_generate_btn = gr.Button("Generate Batch", variant="primary")
