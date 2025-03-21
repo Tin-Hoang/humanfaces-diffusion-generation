@@ -16,10 +16,10 @@ python scripts/generate.py \
     --checkpoint "checkpoints/ddpm-celebahq-128-27000train-20250316_141247" \
     --pipeline ddim \
     --num-inference-steps 100 \
-    --num-images 32 \
+    --num-images 300 \
     --output-dir "outputs/samples/ddim_fast" \
     --batch-size 8 \
-    --seed 123
+    --seed 42
 
 # # DDPM with more steps (2000)
 # python scripts/generate.py \

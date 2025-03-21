@@ -113,17 +113,16 @@ def calculate_fid_from_folders(
         dataset = load_dataset("imagefolder", data_dir=folder_path, split="train")
         print(f"Found {len(dataset)} images")
         
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-        print(f"Processing in batches of {batch_size}")
-        
-        # Process images
+        # Process images in batches
         n_processed = 0
-        for batch in dataloader:
-            images = batch["image"]
+        for i in range(0, len(dataset), batch_size):
+            batch = dataset[i:i + batch_size]
             # Convert PIL images to tensors
-            tensors = torch.stack([preprocess(img.convert("RGB")) for img in images]).to(device)
+            tensors = torch.stack([
+                preprocess(img.convert("RGB")) for img in batch["image"]
+            ]).to(device)
             fid.update(tensors, real=is_real)
-            n_processed += len(images)
+            n_processed += len(batch)
             if n_processed % 100 == 0:  # Print progress every 100 images
                 print(f"Processed {n_processed}/{len(dataset)} images...")
         print(f"Finished processing {n_processed} images")
