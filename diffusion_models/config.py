@@ -1,5 +1,6 @@
 """Configuration for training diffusion models."""
 
+import os
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import argparse
@@ -36,7 +37,17 @@ class TrainingConfig:
     def __post_init__(self):
         """Set default output_dir if not provided."""
         if self.output_dir is None:
-            self.output_dir = f"ddpm-celebahq-128-27000train-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            self.output_dir = f"checkpoints/ddpm-celebahq-128-27000train-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+
+        if not os.path.exists(self.train_dir):
+            raise FileNotFoundError(f"Training directory not found: {self.train_dir}")
+
+        if not os.path.exists(self.val_dir):
+            # Warn the user that the validation directory does not exist
+            print(f"Warning: Validation directory not found: {self.val_dir}")
 
 
 def parse_args() -> TrainingConfig:

@@ -46,10 +46,12 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, lr_scheduler
     )
+    if val_dataloader is not None:
+        val_dataloader = accelerator.prepare(val_dataloader)
 
     global_step = 0
 
-    # Now you train the model
+    # Training loop
     for epoch in range(config.num_epochs):
         progress_bar = tqdm(total=len(train_dataloader), disable=not accelerator.is_local_main_process)
         progress_bar.set_description(f"Epoch {epoch}")
@@ -66,7 +68,6 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
             ).long()
 
             # Add noise to the clean images according to the noise magnitude at each timestep
-            # (this is the forward diffusion process)
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
             with accelerator.accumulate(model):
@@ -83,19 +84,17 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
             progress_bar.update(1)
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "step": global_step}
             if config.use_wandb:
-                # Push train logs to wandb
                 wandb.log({
                     "train/batch_loss": loss.detach().item(),
                     "train/lr": lr_scheduler.get_last_lr()[0],
                     "train/epoch": epoch
-                },
-                step=global_step)
+                }, step=global_step)
 
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
             global_step += 1
 
-        # After each epoch you optionally sample some demo images with evaluate() and save the model
+        # After each epoch you optionally sample some demo images and save the model
         if accelerator.is_main_process:
             pipeline = DDPMPipeline(
                 unet=accelerator.unwrap_model(model),
@@ -103,7 +102,7 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
             )
 
             if (epoch + 1) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:
-                # First run evaluation
+                # Generate and save sample images
                 _, image_grid = generate_grid_images(config, epoch, pipeline)
 
                 # Log grid images to WandB
@@ -113,22 +112,23 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                         "validation/epoch": epoch
                     })
 
-                print(f"Calculating FID score at epoch {epoch + 1}...")
-                fid_score = generate_and_calculate_fid(
-                    pipeline=pipeline,
-                    val_dataloader=val_dataloader,
-                    device=accelerator.device,
-                    preprocess=preprocess,
-                    num_samples=config.val_n_samples
-                )
-                print(f"FID Score: {fid_score:.2f}")
-                
-                # Log to WandB
-                if config.use_wandb:
-                    wandb.log({
-                        "validation/fid_score": fid_score
-                    } 
-                )
+                # Calculate FID if validation dataset is available
+                if val_dataloader is not None:
+                    print(f"Calculating FID score at epoch {epoch + 1}...")
+                    fid_score = generate_and_calculate_fid(
+                        pipeline=pipeline,
+                        val_dataloader=val_dataloader,
+                        device=accelerator.device,
+                        preprocess=preprocess,
+                        num_samples=config.val_n_samples
+                    )
+                    print(f"FID Score: {fid_score:.2f}")
+                    
+                    # Log to WandB
+                    if config.use_wandb:
+                        wandb.log({
+                            "validation/fid_score": fid_score
+                        })
 
             if (epoch + 1) % config.save_model_epochs == 0 or epoch == config.num_epochs - 1:
                 if config.push_to_hub:

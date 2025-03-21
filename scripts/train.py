@@ -34,13 +34,17 @@ def main():
         shuffle=True
     )
     
-    # Setup validation dataset
-    val_dataloader, _ = setup_dataloader(
-        data_dir=config.val_dir,
-        batch_size=config.eval_batch_size,
-        image_size=config.image_size,
-        shuffle=False
-    )
+    # Setup validation dataset if val_dir is provided
+    val_dataloader = None
+    if config.val_dir:
+        val_dataloader, _ = setup_dataloader(
+            data_dir=config.val_dir,
+            batch_size=config.eval_batch_size,
+            image_size=config.image_size,
+            shuffle=False
+        )
+    else:
+        print("\nNo validation directory provided, skipping validation setup")
     
     # Create model and noise scheduler
     model = create_model(config)
