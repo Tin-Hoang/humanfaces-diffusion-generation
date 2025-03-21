@@ -16,10 +16,14 @@ Using UV for dependency management:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Create a virtual environment and install dependencies
-uv venv
+uv venv --python 3.11
+# Activate the virtual environment
+source .venv/bin/activate
+
+# Install required dependencies
 uv pip install -e .
 
-# For development
+# For development (linting, formatting, etc.)
 uv pip install -e .[dev]
 
 # For notebook - quick interactive session
