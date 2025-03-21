@@ -2,7 +2,7 @@ import wandb
 from accelerate import notebook_launcher
 
 from diffusion_models.config import parse_args
-from diffusion_models.datasets.dataset import setup_dataloader
+from diffusion_models.datasets.dataloader import setup_dataloader
 from diffusion_models.models.unet_model import create_model, create_noise_scheduler, setup_optimizer_and_scheduler
 from diffusion_models.training_loop import train_loop
 
