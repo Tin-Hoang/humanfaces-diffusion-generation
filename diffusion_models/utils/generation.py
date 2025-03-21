@@ -5,6 +5,10 @@ from typing import List
 import torch
 from PIL import Image
 from tqdm import tqdm
+import os
+from diffusers import DDPMPipeline
+
+from diffusion_models.config import TrainingConfig
 
 
 def generate_images(
@@ -107,4 +111,43 @@ def generate_images_to_dir(
             image_idx += 1
         
         remaining_images -= curr_batch_size
-        print(f"Generated {image_idx} of {num_images} images") 
+        print(f"Generated {image_idx} of {num_images} images")
+
+
+def make_grid(images, rows, cols):
+    """Create a grid of images."""
+    w, h = images[0].size
+    grid = Image.new("RGB", size=(cols * w, rows * h))
+    for i, image in enumerate(images):
+        grid.paste(image, box=(i % cols * w, i // cols * h))
+    return grid
+
+
+def generate_grid_images(config: TrainingConfig, epoch: int, pipeline: DDPMPipeline):
+    """Generate and save a grid of sample images.
+    
+    Args:
+        config: Training configuration
+        epoch: Current epoch number
+        pipeline: DDPM pipeline for generating images
+        
+    Returns:
+        Tuple of (list of generated images, grid image)
+    """
+    # Generate sample images
+    generator = torch.manual_seed(config.seed)
+    images = pipeline(
+        batch_size=config.eval_batch_size,
+        generator=generator,
+        num_inference_steps=config.num_train_timesteps
+    ).images
+
+    # Make a grid out of the images
+    image_grid = make_grid(images, rows=4, cols=4)
+
+    # Save the images
+    test_dir = os.path.join(config.output_dir, "samples")
+    os.makedirs(test_dir, exist_ok=True)
+    image_grid.save(f"{test_dir}/{epoch:04d}.png")
+
+    return images, image_grid 

@@ -7,7 +7,7 @@ import torch
 import numpy as np
 from PIL import Image
 from diffusion_models.pipeline import load_pipeline
-from diffusion_models.generation import generate_images, generate_images_to_dir
+from diffusion_models.utils.generation import generate_images, generate_images_to_dir
 
 
 def get_device():
