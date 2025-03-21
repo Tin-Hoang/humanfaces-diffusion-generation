@@ -1,5 +1,4 @@
 import wandb
-from accelerate import notebook_launcher
 
 from diffusion_models.config import parse_args
 from diffusion_models.datasets.dataloader import setup_dataloader
@@ -53,11 +52,8 @@ def main():
     # Setup optimizer and learning rate scheduler
     optimizer, lr_scheduler = setup_optimizer_and_scheduler(model, config, train_dataloader)
     
-    # Prepare arguments for training loop
-    args = (config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, val_dataloader, preprocess)
-    
-    # Launch training
-    notebook_launcher(train_loop, args, num_processes=1)
+    # Run training loop directly with the training function
+    train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, val_dataloader, preprocess)
 
 if __name__ == "__main__":
     main()
