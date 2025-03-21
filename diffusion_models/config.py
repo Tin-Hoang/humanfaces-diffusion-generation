@@ -14,7 +14,7 @@ class TrainingConfig:
     image_size: int = 128  # the generated image resolution
     train_batch_size: int = 16
     eval_batch_size: int = 16  # how many images to sample during evaluation
-    num_epochs: int = 300
+    num_epochs: int = 100
     gradient_accumulation_steps: int = 1
     learning_rate: float = 1e-4
     lr_warmup_steps: int = 500
