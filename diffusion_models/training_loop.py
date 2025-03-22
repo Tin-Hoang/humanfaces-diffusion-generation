@@ -117,8 +117,8 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                         val_dataloader=val_dataloader,
                         device=accelerator.device,
                         preprocess=preprocess,
-                        num_samples=config.val_n_samples,
-                        num_train_timesteps=config.num_train_timesteps
+                        num_train_timesteps=config.num_train_timesteps,
+                        num_samples=config.val_n_samples
                     )
                     print(f"FID Score: {fid_score:.2f}")
                     
