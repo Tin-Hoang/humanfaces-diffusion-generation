@@ -7,6 +7,18 @@ import argparse
 from typing import Optional
 
 
+def str2bool(v):
+    """Convert string to boolean."""
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 @dataclass
 class TrainingConfig:
     """Configuration for training diffusion models."""
@@ -33,8 +45,6 @@ class TrainingConfig:
     val_n_samples: int = 100  # Number of samples to generate for FID calculation
     num_train_timesteps: int = 1000  # num_train_timesteps for DDPM scheduler and pipeline inference
 
-    push_to_hub: bool = False  # whether to upload the saved model to the HF Hub
-    hub_private_repo: bool = False
     overwrite_output_dir: bool = True  # overwrite the old model when re-running the notebook
     seed: int = 42
     use_wandb: bool = True  # Whether to use WandB logging
@@ -99,15 +109,11 @@ def parse_args() -> TrainingConfig:
                       help="Number of samples for FID calculation")
     parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"],
                       help="Number of training timesteps")
-    parser.add_argument("--push-to-hub", action="store_true",
-                      help="Push model to Hugging Face Hub")
-    parser.add_argument("--hub-private-repo", action="store_true",
-                      help="Create private repository on Hugging Face Hub")
     parser.add_argument("--overwrite-output-dir", action="store_true",
                       help="Overwrite output directory if it exists")
     parser.add_argument("--seed", type=int, default=defaults["seed"],
                       help="Random seed")
-    parser.add_argument("--use-wandb", type=bool, default=defaults["use_wandb"],
+    parser.add_argument("--use-wandb", type=str2bool, default=defaults["use_wandb"],
                       help="Use Wandb to track experiments")
     
     # Parse arguments
