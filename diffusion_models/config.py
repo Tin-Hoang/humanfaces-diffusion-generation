@@ -21,6 +21,7 @@ class TrainingConfig:
     num_epochs: int = 100
     gradient_accumulation_steps: int = 1
     learning_rate: float = 1e-4
+    weight_decay: float = 1e-2
     lr_warmup_steps: int = 500
     save_image_epochs: int = 5
     save_model_epochs: int = 5
@@ -76,6 +77,8 @@ def parse_args() -> TrainingConfig:
                       help="Number of gradient accumulation steps")
     parser.add_argument("--learning-rate", type=float, default=defaults["learning_rate"],
                       help="Learning rate")
+    parser.add_argument("--weight-decay", type=float, default=defaults["weight_decay"],
+                      help="Weight decay for optimizer")
     parser.add_argument("--lr-warmup-steps", type=int, default=defaults["lr_warmup_steps"],
                       help="Number of learning rate warmup steps")
     parser.add_argument("--save-image-epochs", type=int, default=defaults["save_image_epochs"],
