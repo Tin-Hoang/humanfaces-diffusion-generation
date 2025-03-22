@@ -43,9 +43,15 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
         accelerator.init_trackers("train_example")
         # Log code using wandb.run.log_code() instead of an artifact.
         if config.use_wandb:
-            # Log only the specified code files.
-            wandb.run.log_code(root=".", include_fn= lambda path: path.endswith(".py") or path.endswith(".ipynb"))
-
+            wandb.run.log_code(
+                root=".",
+                include_fn=lambda path: (
+                    path.endswith(".py") 
+                    or path.endswith(".ipynb") 
+                    or path.endswith(".sh")
+                ),
+                exclude_fn=lambda path: ".venv" in path  # Exclude any files under .venv
+    )
 
     # Prepare everything
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
