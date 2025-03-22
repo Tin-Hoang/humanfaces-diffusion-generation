@@ -12,7 +12,7 @@ def parse_args():
     parser.add_argument("--fake-dir", type=str, required=True,
                       help="Directory containing generated/fake images")
     parser.add_argument("--batch-size", type=int, default=32,
-                      help="Batch size for processing images")
+                      help="Batch size for loading images to fid.update")
     parser.add_argument("--image-size", type=int, default=None,
                       help="Size to resize images to (optional)")
     parser.add_argument("--device", type=str, default=None,

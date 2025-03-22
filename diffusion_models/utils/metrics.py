@@ -122,8 +122,9 @@ def calculate_fid_from_folders(
                 preprocess(img.convert("RGB")) for img in batch["image"]
             ]).to(device)
             fid.update(tensors, real=is_real)
-            n_processed += len(batch)
-            if n_processed % 100 == 0:  # Print progress every 100 images
+            n_processed += len(batch["image"])
+            
+            if i % (batch_size * 10) == 0:  # Print progress every 10 batches
                 print(f"Processed {n_processed}/{len(dataset)} images...")
         print(f"Finished processing {n_processed} images")
     
