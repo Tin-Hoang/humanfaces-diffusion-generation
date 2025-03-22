@@ -1,3 +1,4 @@
+from datetime import datetime
 import wandb
 import torch
 
@@ -18,7 +19,7 @@ def main():
     for key, value in vars(config).items():
         print(f"\t{key}: {value}")
     print("=" * 80)
-    
+    input("Press Enter to continue...")
     # Create model and noise scheduler
     if config.model == "unet_notebook":
         from diffusion_models.models.unet_notebook import create_model
@@ -36,6 +37,7 @@ def main():
         run = wandb.init(
             entity="tin-hoang",  # Shared by all members
             project="EEEM068_Diffusion_Models",
+            name=config.wandb_run_name,  # Use custom run name if provided
             config=config,
         )
     

@@ -2,6 +2,9 @@
 
 # Check diffusion_models/config.py for the parameters
 
+# If output_dir is not provided, it will be set to the default name = dataset_name + timestamp
+# If wandb_run_name is not provided, it will be set to the default name = dataset_name + timestamp
+
 # Training with parameters
 python scripts/train.py \
     --model unet_notebook \
@@ -13,10 +16,9 @@ python scripts/train.py \
     --learning-rate 1e-4 \
     --weight-decay 1e-2 \
     --lr-warmup-steps 500 \
-    --save-image-epochs 2 \
+    --save-image-epochs 5 \
     --save-model-epochs 5 \
     --mixed-precision fp16 \
-    --output-dir "outputs/ddpm-celebahq-128-2665train" \
     --dataset-name "celeba_hq_128_2665train" \
     --train-dir "data/celeba_hq_256" \
     --val-dir "data/CelebA-HQ-split/test_300" \
@@ -24,4 +26,5 @@ python scripts/train.py \
     --num-train-timesteps 1000 \
     --overwrite-output-dir \
     --seed 42 \
-    --use-wandb True
+    --use-wandb True \
+    --wandb-run-name "unet2d_128_ddpm_2665train"

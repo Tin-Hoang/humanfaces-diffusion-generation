@@ -48,11 +48,16 @@ class TrainingConfig:
     overwrite_output_dir: bool = True  # overwrite the old model when re-running the notebook
     seed: int = 42
     use_wandb: bool = True  # Whether to use WandB logging
+    wandb_run_name: Optional[str] = None  # Name for the WandB run, if None will use default
 
     def __post_init__(self):
         """Set default output_dir if not provided."""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         if self.output_dir is None:
-            self.output_dir = f"checkpoints/ddpm-celebahq-128-27000train-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            self.output_dir = f"checkpoints/{self.dataset_name}_{timestamp}"
+
+        if not self.wandb_run_name:
+            self.wandb_run_name = f"{self.dataset_name}_{timestamp}"
 
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
@@ -115,6 +120,8 @@ def parse_args() -> TrainingConfig:
                       help="Random seed")
     parser.add_argument("--use-wandb", type=str2bool, default=defaults["use_wandb"],
                       help="Use Wandb to track experiments")
+    parser.add_argument("--wandb-run-name", type=str, default=defaults["wandb_run_name"],
+                      help="Name for the WandB run (optional)")
     
     # Parse arguments
     args = parser.parse_args()
