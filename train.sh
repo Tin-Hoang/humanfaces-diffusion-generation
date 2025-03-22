@@ -4,6 +4,7 @@
 
 # Training with custom parameters
 python scripts/train.py \
+    --model unet_notebook \
     --image-size 128 \
     --train-batch-size 16 \
     --eval-batch-size 16 \
@@ -12,6 +13,7 @@ python scripts/train.py \
     --lr-warmup-steps 500 \
     --gradient-accumulation-steps 1 \
     --train-dir "data/celeba_hq_256" \
+    --val-dir "data/CelebA-HQ-split/test_300" \
     --output-dir "outputs/ddpm-celebahq-128-2665train" \
     --val-n-samples 100 \
     --save-image-epochs 2 \

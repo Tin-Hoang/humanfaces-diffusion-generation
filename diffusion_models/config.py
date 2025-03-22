@@ -62,6 +62,8 @@ def parse_args() -> TrainingConfig:
     defaults = asdict(TrainingConfig())
     
     # Add arguments for each config field
+    parser.add_argument("--model", type=str, default=defaults["model"],
+                      help="Model to use")
     parser.add_argument("--image-size", type=int, default=defaults["image_size"],
                       help="The generated image resolution")
     parser.add_argument("--train-batch-size", type=int, default=defaults["train_batch_size"],

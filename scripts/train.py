@@ -7,6 +7,7 @@ from diffusion_models.training_loop import train_loop
 from diffusion_models.noise_schedulers.ddpm_scheduler import create_noise_scheduler
 from diffusers.optimization import get_cosine_schedule_with_warmup
 
+
 def main():
     # Parse command line arguments and get config
     config = parse_args()
@@ -18,10 +19,22 @@ def main():
         print(f"\t{key}: {value}")
     print("=" * 80)
     
+    # Create model and noise scheduler
+    if config.model == "unet_notebook":
+        from diffusion_models.models.unet_notebook import create_model
+        model = create_model(config)
+    elif config.model == "unet_2":
+        raise NotImplementedError("Unet 2 is not implemented yet")
+    elif config.model == "unet_3":
+        raise NotImplementedError("Unet 3 is not implemented yet")
+    else:
+        raise ValueError(f"Invalid model type: {config.model}")
+    
     # Initialize WandB if enabled
     if config.use_wandb:
         wandb.finish()  # Finish previous if existed
         run = wandb.init(
+            entity="tin-hoang",  # Shared by all members
             project="EEEM068_Diffusion_Models",
             config=config,
         )
@@ -45,17 +58,6 @@ def main():
         )
     else:
         print("\nNo validation directory provided, skipping validation setup")
-    
-    # Create model and noise scheduler
-    if config.model == "unet_notebook":
-        from diffusion_models.models.unet_notebook import create_model
-        model = create_model(config)
-    elif config.model == "unet_2":
-        raise NotImplementedError("Unet 2 is not implemented yet")
-    elif config.model == "unet_3":
-        raise NotImplementedError("Unet 3 is not implemented yet")
-    else:
-        raise ValueError(f"Invalid model type: {config.model}")
     
     noise_scheduler = create_noise_scheduler(
         num_train_timesteps=config.num_train_timesteps
