@@ -41,12 +41,21 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
             os.makedirs(config.output_dir, exist_ok=True)
             os.makedirs(os.path.join(config.output_dir, "optimizer"), exist_ok=True)
         accelerator.init_trackers("train_example")
+        # Log code using wandb.run.log_code() instead of an artifact.
         if config.use_wandb:
-            code_artifact = wandb.Artifact('source-code', type='code')
-            code_artifact.add_file('diffusion_models/training_loop.py')
-            code_artifact.add_file('diffusion_models/config.py')
-            code_artifact.add_file('diffusion_models/pipeline.py')  # fixed path here
-            wandb.log_artifact(code_artifact)
+            def include_fn(path):
+                import os
+                # Normalize path for consistent matching.
+                norm_path = os.path.normpath(path)
+                allowed_files = {
+                    os.path.normpath('diffusion_models/training_loop.py'),
+                    os.path.normpath('diffusion_models/config.py'),
+                    os.path.normpath('diffusion_models/pipeline.py')
+                }
+                return norm_path in allowed_files
+
+            # Log only the specified code files.
+            wandb.run.log_code(root=".", include_fn=include_fn)
 
 
     # Prepare everything
