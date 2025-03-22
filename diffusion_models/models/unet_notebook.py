@@ -1,8 +1,6 @@
 """Model creation and setup for diffusion models."""
 
-from diffusers import UNet2DModel, DDPMScheduler
-from diffusers.optimization import get_cosine_schedule_with_warmup
-import torch
+from diffusers import UNet2DModel
 
 from diffusion_models.config import TrainingConfig
 
@@ -33,22 +31,3 @@ def create_model(config: TrainingConfig) -> UNet2DModel:
         ),
     )
     return model
-
-
-def create_noise_scheduler(config: TrainingConfig) -> DDPMScheduler:
-    """Create and return the DDPMScheduler."""
-    noise_scheduler = DDPMScheduler(
-        num_train_timesteps=config.num_train_timesteps,
-    )
-    return noise_scheduler
-
-
-def setup_optimizer_and_scheduler(model: UNet2DModel, config: TrainingConfig, train_dataloader) -> tuple:
-    """Setup optimizer and learning rate scheduler."""
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-    lr_scheduler = get_cosine_schedule_with_warmup(
-        optimizer=optimizer,
-        num_warmup_steps=config.lr_warmup_steps,
-        num_training_steps=(len(train_dataloader) * config.num_epochs),
-    )
-    return optimizer, lr_scheduler

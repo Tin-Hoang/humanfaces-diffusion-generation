@@ -11,6 +11,10 @@ from typing import Optional
 class TrainingConfig:
     """Configuration for training diffusion models."""
     
+    # Model configuration
+    model: str = "unet_notebook"  # Type of model to use (e.g., "unet_notebook")
+    
+    # Training configuration
     image_size: int = 128  # the generated image resolution
     train_batch_size: int = 16
     eval_batch_size: int = 16  # how many images to sample during evaluation

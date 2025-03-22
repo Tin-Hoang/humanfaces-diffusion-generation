@@ -1,10 +1,11 @@
 import wandb
+import torch
 
 from diffusion_models.config import parse_args
 from diffusion_models.datasets.dataloader import setup_dataloader
-from diffusion_models.models.unet_model import create_model, create_noise_scheduler, setup_optimizer_and_scheduler
 from diffusion_models.training_loop import train_loop
-
+from diffusion_models.noise_schedulers.ddpm_scheduler import create_noise_scheduler
+from diffusers.optimization import get_cosine_schedule_with_warmup
 
 def main():
     # Parse command line arguments and get config
@@ -46,12 +47,33 @@ def main():
         print("\nNo validation directory provided, skipping validation setup")
     
     # Create model and noise scheduler
-    model = create_model(config)
-    noise_scheduler = create_noise_scheduler(config)
+    if config.model == "unet_notebook":
+        from diffusion_models.models.unet_notebook import create_model
+        model = create_model(config)
+    elif config.model == "unet_2":
+        raise NotImplementedError("Unet 2 is not implemented yet")
+    elif config.model == "unet_3":
+        raise NotImplementedError("Unet 3 is not implemented yet")
+    else:
+        raise ValueError(f"Invalid model type: {config.model}")
     
-    # Setup optimizer and learning rate scheduler
-    optimizer, lr_scheduler = setup_optimizer_and_scheduler(model, config, train_dataloader)
-    
+    noise_scheduler = create_noise_scheduler(
+        num_train_timesteps=config.num_train_timesteps
+    )
+
+    # Setup optimizer and learning rate scheduler separately
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=config.learning_rate,
+        weight_decay=config.weight_decay
+    )
+
+    lr_scheduler = get_cosine_schedule_with_warmup(
+        optimizer=optimizer,
+        num_warmup_steps=config.lr_warmup_steps,
+        num_training_steps=(len(train_dataloader) * config.num_epochs)
+    )
+
     # Run training loop directly with the training function
     train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, val_dataloader, preprocess)
 
