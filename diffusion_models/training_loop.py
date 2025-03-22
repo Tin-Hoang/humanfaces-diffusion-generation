@@ -41,6 +41,13 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
             os.makedirs(config.output_dir, exist_ok=True)
             os.makedirs(os.path.join(config.output_dir, "optimizer"), exist_ok=True)
         accelerator.init_trackers("train_example")
+        if config.use_wandb:
+            code_artifact = wandb.Artifact('source-code', type='code')
+            code_artifact.add_file('diffusion_models/training_loop.py')
+            code_artifact.add_file('diffusion_models/config.py')
+            code_artifact.add_file('diffusion_models/pipeline.py')  # fixed path here
+            wandb.log_artifact(code_artifact)
+
 
     # Prepare everything
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
