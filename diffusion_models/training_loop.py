@@ -43,19 +43,8 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
         accelerator.init_trackers("train_example")
         # Log code using wandb.run.log_code() instead of an artifact.
         if config.use_wandb:
-            def include_fn(path):
-                import os
-                # Normalize path for consistent matching.
-                norm_path = os.path.normpath(path)
-                allowed_files = {
-                    os.path.normpath('diffusion_models/training_loop.py'),
-                    os.path.normpath('diffusion_models/config.py'),
-                    os.path.normpath('diffusion_models/pipeline.py')
-                }
-                return norm_path in allowed_files
-
             # Log only the specified code files.
-            wandb.run.log_code(root=".", include_fn=include_fn)
+            wandb.run.log_code(root=".", include_fn= lambda path: path.endswith(".py") or path.endswith(".ipynb"))
 
 
     # Prepare everything
