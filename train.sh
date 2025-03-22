@@ -2,12 +2,15 @@
 
 # Check diffusion_models/config.py for the parameters
 
-# If output_dir is not provided, it will be set to the default name = dataset_name + timestamp
-# If wandb_run_name is not provided, it will be set to the default name = dataset_name + timestamp
+# If run_name is not provided, it will be set to the default name = dataset_name + timestamp
+# If output_dir is not provided, it will be set to the default name = "checkpoints/<run_name>"
+# If wandb_project is not provided, it will be set to the default name = "EEEM068_Diffusion_Models"
+# If wandb_entity is not provided, it will be set to the default name = "tin-hoang"
 
 # Training with parameters
 python scripts/train.py \
     --model unet_notebook \
+    --run-name "unet2d_128_ddpm_2665train" \
     --image-size 128 \
     --train-batch-size 16 \
     --eval-batch-size 16 \
@@ -27,4 +30,6 @@ python scripts/train.py \
     --overwrite-output-dir \
     --seed 42 \
     --use-wandb True \
-    --wandb-run-name "unet2d_128_ddpm_2665train"
+    --wandb-project "EEEM068_Diffusion_Models" \
+    --wandb-entity "tin-hoang"
+   
