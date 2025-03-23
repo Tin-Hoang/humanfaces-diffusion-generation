@@ -40,9 +40,9 @@ class TrainingConfig:
     save_model_epochs: int = 5
     mixed_precision: str = "fp16"  # `no` for float32, `fp16` for automatic mixed precision
     output_dir: Optional[str] = None  # Will be set in parse_args
-    dataset_name: str = "celeba_hq_128_2665train"  # Customize the dataset name to note the dataset used
-    train_dir: str = "data/celeba_hq_256"  # Add train directory
-    val_dir: str = "data/CelebA-HQ-split/test_300"  # Add validation directory
+    dataset_name: str = "celeba_hq_128_2700train"  # Customize the dataset name to note the dataset used
+    train_dir: str = "data/celeba_hq_split/train"  # Add train directory
+    val_dir: str = None  # Add validation directory
     val_n_samples: int = 100  # Number of samples to generate for FID calculation
     num_train_timesteps: int = 1000  # num_train_timesteps for DDPM scheduler and pipeline inference
 
@@ -74,9 +74,9 @@ class TrainingConfig:
         if not os.path.exists(self.train_dir):
             raise FileNotFoundError(f"Training directory not found: {self.train_dir}")
 
-        if not os.path.exists(self.val_dir):
+        if not self.val_dir or not os.path.exists(self.val_dir):
             # Warn the user that the validation directory does not exist
-            print(f"Warning: Validation directory not found: {self.val_dir}")
+            print(f"Warning: Validation directory not inputted or not found: {self.val_dir}")
 
 
 def parse_args() -> TrainingConfig:

@@ -37,6 +37,7 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
         if config.output_dir is not None:
             os.makedirs(config.output_dir, exist_ok=True)
             os.makedirs(os.path.join(config.output_dir, "optimizer"), exist_ok=True)
+            os.makedirs(os.path.join(config.output_dir, "best_model"), exist_ok=True)
         accelerator.init_trackers("train_example")
         # Log code using wandb.run.log_code() instead of an artifact.
         if config.use_wandb:
@@ -48,7 +49,11 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                     or path.endswith(".sh")
                 ),
                 exclude_fn=lambda path: ".venv" in path  # Exclude any files under .venv
-    )
+            )
+    
+    # Initialize best FID score tracking
+    best_fid_score = float('inf')
+    best_epoch = 0
 
     # Prepare everything
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
@@ -138,8 +143,26 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                         wandb.log({
                             "validation/fid_score": fid_score
                         })
+                    
+                    # Save best model if FID score improves
+                    if fid_score < best_fid_score:
+                        best_fid_score = fid_score
+                        best_epoch = epoch
+                        print(f"New best FID score: {best_fid_score:.2f} at epoch {best_epoch}")
+                        # Save best model
+                        pipeline.save_pretrained(os.path.join(config.output_dir, "best_model"))
+                        os.makedirs(os.path.join(config.output_dir, "best_model", "optimizer"), exist_ok=True)
+                        # Save optimizer state for best model
+                        torch.save({
+                            "epoch": epoch,
+                            "optimizer_state_dict": optimizer.state_dict(),
+                            "scaler_state_dict": accelerator.scaler.state_dict(),
+                            "loss": loss.item(),
+                            "fid_score": best_fid_score,
+                        }, os.path.join(config.output_dir, "best_model", "optimizer", "optimizer.pth"))
 
             if (epoch + 1) % config.save_model_epochs == 0 or epoch == config.num_epochs - 1:
+                # Save most recent checkpoint
                 pipeline.save_pretrained(config.output_dir)
                 # Save optimizer and scaler for resuming
                 torch.save({
@@ -147,4 +170,4 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                     "optimizer_state_dict": optimizer.state_dict(),
                     "scaler_state_dict": accelerator.scaler.state_dict(),
                     "loss": loss.item(),
-                }, os.path.join(config.output_dir, "optimizer", "optimizer.pth")) 
+                }, os.path.join(config.output_dir, "optimizer", "optimizer.pth"))
