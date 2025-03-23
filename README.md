@@ -3,7 +3,7 @@
 
 ## 1. Project Overview
 
-This repository contains an implementation of diffusion models for image generation, specifically focused on human faces. The project is structured as a Python application with a clear, modular organization.
+This repository contains an implementation of diffusion models for image generation, specifically focused on human faces.
 
 <p align="center">
   <img src="docs/generated-faces.gif" alt="Generated Human Faces" width="512"/>
@@ -221,3 +221,9 @@ Then navigate to `notebooks/` directory and open the relevant notebook.
 ## 5. License
 
 This project is part of the EEEM068 Diffusion Models coursework at the University of Surrey.
+
+### Group 5 - Project members:
+- [Enggen Sherpa​](https://github.com/enggen)
+- [Dhruvraj Singh Rawat​](https://github.com/dhruvraj-singh-rawat)
+- [Rishikesan Kirupanantha​](https://github.com/rishikesan19)
+- [Tin Hoang​](https://github.com/Tin-Hoang)
