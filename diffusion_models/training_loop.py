@@ -54,7 +54,7 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, lr_scheduler
     )
-    if val_dataloader is not None:
+    if val_dataloader:
         val_dataloader = accelerator.prepare(val_dataloader)
 
     global_step = 0
@@ -121,15 +121,15 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                     })
 
                 # Calculate FID if validation dataset is available
-                if val_dataloader is not None:
+                if val_dataloader:
                     print(f"Calculating FID score at epoch {epoch + 1}...")
                     fid_score = generate_and_calculate_fid(
                         pipeline=pipeline,
                         val_dataloader=val_dataloader,
                         device=accelerator.device,
                         preprocess=preprocess,
-                        num_samples=config.val_n_samples,
-                        num_train_timesteps=config.num_train_timesteps
+                        num_train_timesteps=config.num_train_timesteps,
+                        num_samples=config.val_n_samples
                     )
                     print(f"FID Score: {fid_score:.2f}")
                     
