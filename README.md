@@ -221,6 +221,7 @@ Then navigate to `notebooks/` directory and open the relevant notebook.
 ## 5. License
 
 This project is part of the EEEM068 Diffusion Models coursework at the University of Surrey.
+We publish this code under the MIT license for educational purposes.
 
 ### Group 5 - Project members:
 - [Enggen Sherpa​](https://github.com/enggen)
