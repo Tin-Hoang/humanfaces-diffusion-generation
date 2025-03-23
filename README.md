@@ -1,13 +1,25 @@
 # EEEM068-HumanFaces-Diffusion
 EEEM068 - Coursework - Group 5 
 
-## Project Overview
+## 1. Project Overview
 
 This repository contains an implementation of diffusion models for image generation, specifically focused on human faces. The project is structured as a Python application with a clear, modular organization.
 
-## Installation
+1. [Installation](#2-installation)
+   - [Setup with UV](#21-setup-with-uv)
+2. [Project Structure](#3-project-structure)
+3. [Usage](#4-usage)
+   - [Training](#41-training-use-script)
+   - [Training with Accelerate](#42-training-with-accelerate-distributed-training)
+   - [Image Generation](#43-image-generation)
+     - [Gradio UI](#431-generation-using-the-gradio-ui)
+     - [Command Line](#432-generation-using-the-command-line-script)
+   - [Using the Notebook](#44-using-the-notebook)
+4. [License](#5-license)
 
-### Setup with UV
+## 2. Installation
+
+### 2.1 Setup with UV
 
 Using UV for dependency management:
 
@@ -30,7 +42,7 @@ uv pip install -e .[dev]
 uv pip install -e .[notebook]
 ```
 
-## Project Structure
+## 3. Project Structure
 
 ```
 EEEM068-Diffusion-Models/
@@ -53,47 +65,65 @@ EEEM068-Diffusion-Models/
 └── README.md                   # Project documentation
 ```
 
-## Usage
+## 4. Usage
 
-### Training a Diffusion Model (use script)
+### 4.1 Training (use script)
 
-Run the training script with the following command:
+To train a model, use the `train.py` script:
+
 ```bash
 python scripts/train.py \
-    --train-dir "data/CelebA-HQ-split/train_2700" \
-    --val-dir "data/CelebA-HQ-split/test_300" \
-    --output-dir "outputs/checkpoints/ddpm-celebahq-128" \
+    --model unet_notebook \
+    --run-name "my_experiment" \
     --image-size 128 \
     --train-batch-size 16 \
     --eval-batch-size 16 \
     --num-epochs 100 \
-    --gradient-accumulation-steps 1 \
     --learning-rate 1e-4 \
-    --mixed-precision "fp16"
+    --weight-decay 1e-2 \
+    --lr-warmup-steps 500 \
+    --save-image-epochs 5 \
+    --save-model-epochs 5 \
+    --mixed-precision fp16 \
+    --train-dir "data/celeba_hq_256" \
+    --val-dir "data/CelebA-HQ-split/test_300" \
+    --val-n-samples 100 \
+    --num-train-timesteps 1000 \
+    --use-wandb True \
+    --wandb-project "EEEM068_Diffusion_Models" \
+    --wandb-entity "your_username"
 ```
 
-Key training arguments:
-- `--train-dir`: Directory containing training images
-- `--val-dir`: Directory containing validation images (if not provided, validation will be ignored during training)
-- `--output-dir`: Directory to save model checkpoints and samples
-- `--image-size`: Target image resolution (default: 128)
-- `--train-batch-size`: Training batch size (default: 16)
-- `--eval-batch-size`: Evaluation batch size (default: 16)
-- `--num-epochs`: Number of training epochs (default: 100)
-- `--gradient-accumulation-steps`: Number of steps for gradient accumulation (default: 1)
-- `--learning-rate`: Learning rate (default: 1e-4)
-- `--lr-warmup-steps`: Number of warmup steps for learning rate scheduler (default: 500)
-- `--mixed-precision`: Mixed precision training mode ("no" for float32, "fp16" for automatic mixed precision)
-- `--use-wandb`: Enable Weights & Biases logging (default: True)
-- `--seed`: Random seed for reproducibility (default: 42)
+Key arguments:
+- `--model`: Type of model to use (e.g., "unet_notebook")
+- `--run-name`: Name for the run (used for WandB run name and output directory)
+- `--image-size`: Target image resolution
+- `--train-batch-size`: Training batch size
+- `--eval-batch-size`: Evaluation batch size
+- `--num-epochs`: Number of training epochs
+- `--learning-rate`: Learning rate for optimizer
+- `--weight-decay`: Weight decay for optimizer
+- `--lr-warmup-steps`: Number of learning rate warmup steps
+- `--save-image-epochs`: Save generated images every N epochs
+- `--save-model-epochs`: Save model checkpoint every N epochs
+- `--mixed-precision`: Mixed precision training type ("no" or "fp16")
+- `--train-dir`: Training data directory
+- `--val-dir`: Validation data directory
+- `--val-n-samples`: Number of samples to generate for FID calculation
+- `--num-train-timesteps`: Number of timesteps for DDPM scheduler
+- `--use-wandb`: Whether to use WandB logging
+- `--wandb-project`: Name of the WandB project
+- `--wandb-entity`: Name of the WandB entity
 
 The training script will:
-1. Save model checkpoints periodically
-2. Generate sample images during training
-3. Calculate FID scores if validation data is provided
-4. Log metrics to Weights & Biases if enabled
+1. Save regular checkpoints every `save_model_epochs` epochs
+2. Save the best model (based on FID score) whenever the score improves
+3. Generate and save sample images every `save_image_epochs` epochs
+4. Log training metrics and generated images to WandB if enabled
 
-### Training a Diffusion Model with Accelerate (distributed training)
+The best model will be saved in `{output_dir}/best_model/` while regular checkpoints will be saved in `{output_dir}/`.
+
+### 4.2 Training with Accelerate (distributed training)
 
 The training script uses the Hugging Face 🤗 Accelerate library for distributed training. Follow these steps to train a model:
 
@@ -121,11 +151,11 @@ accelerate launch scripts/train.py \
     --seed 42
 ```
 
-### Image Generation
+### 4.3 Image Generation
 
 You can generate images in two ways:
 
-#### 1. Generation using the Gradio UI:
+#### 4.3.1 Generation using the Gradio UI:
 ```bash
 python ui/app.py
 
@@ -137,7 +167,7 @@ The UI provides two tabs:
 - Single Image Generation: Generate one image at a time with custom noise input
 - Batch Generation: Generate multiple images with specified parameters
 
-#### 2. Generation using the command line script:
+#### 4.3.2 Generation using the command line script:
 
 Input arguments:
 - `--checkpoint`: Path to the model checkpoint directory
@@ -172,7 +202,7 @@ python scripts/generate.py \
     --seed 42
 ```
 
-### Using the Notebook
+### 4.4 Using the Notebook
 
 Alternatively, you can use the provided Jupyter notebooks for a more interactive experience:
 
@@ -183,6 +213,6 @@ jupyter lab
 
 Then navigate to `notebooks/` directory and open the relevant notebook.
 
-## License
+## 5. License
 
 This project is part of the EEEM068 Diffusion Models coursework at the University of Surrey.

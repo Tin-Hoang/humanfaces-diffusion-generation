@@ -10,7 +10,7 @@
 # Training with parameters
 python scripts/train.py \
     --model unet_notebook \
-    --run-name "unet2d_128_ddpm_2665train" \
+    --run-name "unet2d_128_ddpm_2700train" \
     --image-size 128 \
     --train-batch-size 16 \
     --eval-batch-size 16 \
@@ -22,9 +22,9 @@ python scripts/train.py \
     --save-image-epochs 5 \
     --save-model-epochs 5 \
     --mixed-precision fp16 \
-    --dataset-name "celeba_hq_128_2665train" \
-    --train-dir "data/celeba_hq_256" \
-    --val-dir "data/CelebA-HQ-split/test_300" \
+    --dataset-name "celeba_hq_128_2700train" \
+    --train-dir "data/celeba_hq_split/train" \
+    --val-dir "data/celeba_hq_split/test" \
     --val-n-samples 100 \
     --num-train-timesteps 1000 \
     --overwrite-output-dir \
