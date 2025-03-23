@@ -1,10 +1,15 @@
 # EEEM068-HumanFaces-Diffusion
-EEEM068 - Coursework - Group 5 
+*EEEM068 - Coursework - Group 5*
 
 ## 1. Project Overview
 
 This repository contains an implementation of diffusion models for image generation, specifically focused on human faces. The project is structured as a Python application with a clear, modular organization.
 
+<p align="center">
+  <img src="docs/generated-faces.gif" alt="Generated Human Faces" width="512"/>
+</p>
+
+### Table of Contents
 1. [Installation](#2-installation)
    - [Setup with UV](#21-setup-with-uv)
 2. [Project Structure](#3-project-structure)
