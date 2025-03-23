@@ -34,10 +34,7 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
         project_dir=os.path.join(config.output_dir, "logs"),
     )
     if accelerator.is_main_process:
-        if config.push_to_hub:
-            repo_name = get_full_repo_name(Path(config.output_dir).name)
-            repo = Repository(config.output_dir, clone_from=repo_name)
-        elif config.output_dir is not None:
+        if config.output_dir is not None:
             os.makedirs(config.output_dir, exist_ok=True)
             os.makedirs(os.path.join(config.output_dir, "optimizer"), exist_ok=True)
         accelerator.init_trackers("train_example")
@@ -131,7 +128,8 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                         val_dataloader=val_dataloader,
                         device=accelerator.device,
                         preprocess=preprocess,
-                        num_samples=config.val_n_samples
+                        num_samples=config.val_n_samples,
+                        num_train_timesteps=config.num_train_timesteps
                     )
                     print(f"FID Score: {fid_score:.2f}")
                     
@@ -142,10 +140,7 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                         })
 
             if (epoch + 1) % config.save_model_epochs == 0 or epoch == config.num_epochs - 1:
-                if config.push_to_hub:
-                    repo.push_to_hub(commit_message=f"Epoch {epoch}", blocking=True)
-                else:
-                    pipeline.save_pretrained(config.output_dir)
+                pipeline.save_pretrained(config.output_dir)
                 # Save optimizer and scaler for resuming
                 torch.save({
                     "epoch": epoch,

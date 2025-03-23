@@ -2,18 +2,34 @@
 
 # Check diffusion_models/config.py for the parameters
 
-# Training with custom parameters
+# If run_name is not provided, it will be set to the default name = dataset_name + timestamp
+# If output_dir is not provided, it will be set to the default name = "checkpoints/<run_name>"
+# If wandb_project is not provided, it will be set to the default name = "EEEM068_Diffusion_Models"
+# If wandb_entity is not provided, it will be set to the default name = "tin-hoang"
+
+# Training with parameters
 python scripts/train.py \
-    --image-size 64 \
-    --train-batch-size 2 \
+    --model unet_notebook \
+    --run-name "unet2d_128_ddpm_2665train" \
+    --image-size 128 \
+    --train-batch-size 16 \
     --eval-batch-size 16 \
     --num-epochs 100 \
-    --learning-rate 1e-4 \
-    --lr-warmup-steps 500 \
     --gradient-accumulation-steps 1 \
-    --train-dir "data/CelebA-HQ-split/train_2700" \
+    --learning-rate 1e-4 \
+    --weight-decay 1e-2 \
+    --lr-warmup-steps 500 \
+    --save-image-epochs 5 \
+    --save-model-epochs 5 \
+    --mixed-precision fp16 \
+    --dataset-name "celeba_hq_128_2665train" \
+    --train-dir "data/celeba_hq_256" \
     --val-dir "data/CelebA-HQ-split/test_300" \
-    --output-dir "outputs/ddpm-celebahq-64-2700train" \
     --val-n-samples 100 \
-    --save-image-epochs 2 \
-    --seed 42
+    --num-train-timesteps 1000 \
+    --overwrite-output-dir \
+    --seed 42 \
+    --use-wandb True \
+    --wandb-project "EEEM068_Diffusion_Models" \
+    --wandb-entity "tin-hoang"
+   

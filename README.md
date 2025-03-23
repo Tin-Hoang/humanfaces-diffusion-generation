@@ -60,7 +60,7 @@ EEEM068-Diffusion-Models/
 Run the training script with the following command:
 ```bash
 python scripts/train.py \
-    --train-dir "data/CelebA-HQ-split/train_27000" \
+    --train-dir "data/CelebA-HQ-split/train_2700" \
     --val-dir "data/CelebA-HQ-split/test_300" \
     --output-dir "outputs/checkpoints/ddpm-celebahq-128" \
     --image-size 128 \
