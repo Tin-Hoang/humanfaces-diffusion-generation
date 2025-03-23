@@ -41,7 +41,8 @@ def generate_and_calculate_fid(
         remaining_samples = num_samples
         while remaining_samples > 0:
             # Use a default batch size of 16 if val_dataloader.batch_size is None
-            batch_size = min(getattr(val_dataloader, 'batch_size', 16), remaining_samples)
+            val_batch_size = val_dataloader.batch_size or 16
+            batch_size = min(val_batch_size, remaining_samples)
             # Generate images using the pipeline
             samples = pipeline(
                 batch_size=batch_size,
