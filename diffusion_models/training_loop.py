@@ -38,6 +38,17 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
             os.makedirs(config.output_dir, exist_ok=True)
             os.makedirs(os.path.join(config.output_dir, "optimizer"), exist_ok=True)
         accelerator.init_trackers("train_example")
+        # Log code using wandb.run.log_code() instead of an artifact.
+        if config.use_wandb:
+            wandb.run.log_code(
+                root=".",
+                include_fn=lambda path: (
+                    path.endswith(".py") 
+                    or path.endswith(".ipynb") 
+                    or path.endswith(".sh")
+                ),
+                exclude_fn=lambda path: ".venv" in path  # Exclude any files under .venv
+    )
 
     # Prepare everything
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
