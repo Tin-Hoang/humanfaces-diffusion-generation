@@ -71,7 +71,8 @@ class TrainingConfig:
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-        if not os.path.exists(self.train_dir):
+        # train_dir could be from Hugging Face or local directory
+        if not self.train_dir or not os.path.exists(self.train_dir):
             raise FileNotFoundError(f"Training directory not found: {self.train_dir}")
 
         if not self.val_dir or not os.path.exists(self.val_dir):
