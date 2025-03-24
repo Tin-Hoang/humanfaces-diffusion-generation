@@ -24,6 +24,12 @@ def main():
     if config.model == "unet_notebook":
         from diffusion_models.models.unet_notebook import create_model
         model = create_model(config)
+    elif config.model == "dit":
+        from diffusion_models.models.dit import create_model
+        model = create_model(config)
+    elif config.model == "conditional_unet":
+        from diffusion_models.models.conditional_unet import create_model
+        model = create_model(config)
     elif config.model == "unet_2":
         raise NotImplementedError("Unet 2 is not implemented yet")
     elif config.model == "unet_3":
@@ -43,7 +49,7 @@ def main():
     
     # Setup training dataset and preprocessing
     train_dataloader, preprocess = setup_dataloader(
-        data_dir=config.train_dir,
+        data_source=config.train_dir,
         batch_size=config.train_batch_size,
         image_size=config.image_size,
         shuffle=True
@@ -53,7 +59,7 @@ def main():
     val_dataloader = None
     if config.val_dir:
         val_dataloader, _ = setup_dataloader(
-            data_dir=config.val_dir,
+            data_source=config.val_dir,
             batch_size=config.eval_batch_size,
             image_size=config.image_size,
             shuffle=False
