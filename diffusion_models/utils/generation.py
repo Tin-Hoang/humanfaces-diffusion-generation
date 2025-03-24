@@ -61,6 +61,7 @@ def generate_images(
         images = pipeline(
             batch_size=batch_size,
             generator=generator,
+            num_inference_steps=num_inference_steps
         ).images
     
     return images
