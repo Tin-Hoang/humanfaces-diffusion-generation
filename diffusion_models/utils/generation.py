@@ -174,7 +174,7 @@ def generate_grid_images_attributes(
         Tuple of (list of generated images, grid image)
     """
     # Generate sample images with attribute conditioning
-    generator = torch.Generator(device=pipeline.device).manual_seed(config.seed)
+    generator = torch.Generator(device=pipeline.unet.device).manual_seed(config.seed)
     output = pipeline(
         num_inference_steps=config.num_train_timesteps,
         generator=generator,

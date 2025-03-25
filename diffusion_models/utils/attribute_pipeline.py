@@ -77,16 +77,28 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         # Set timesteps for denoising
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         
-        # Denoising loop
-        for t in self.scheduler.timesteps:
-            # Predict noise
-            noise_pred = self.unet(latents, t, encoder_hidden_states=cond).sample
-            # Update latents
-            latents = self.scheduler.step(noise_pred, t, latents).prev_sample
+        # Print info and setup progress bar
+        print(f"\nGenerating {batch_size} images | Attributes shape: {attributes.shape}")
+        
+        # Denoising loop with progress bar
+        from tqdm import tqdm
+        with tqdm(total=len(self.scheduler.timesteps), desc="Denoising") as pbar:
+            for t in self.scheduler.timesteps:
+                # Predict noise
+                noise_pred = self.unet(latents, t, encoder_hidden_states=cond).sample
+                # Update latents
+                latents = self.scheduler.step(noise_pred, t, latents).prev_sample
+                del noise_pred
+                pbar.update(1)
+                if t % 100 == 0:  # Check every 100 steps
+                    print(f"Step {t}, Memory: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
 
         # Decode latents to images
+        print("Decoding latents to images...")
         latents = latents / self.vae.config.scaling_factor
+        print(f"Before VAE decode: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
         images = self.vae.decode(latents).sample  # (batch_size, 3, 128, 128)
+        print(f"After VAE decode: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
         images = (images / 2 + 0.5).clamp(0, 1)  # Rescale from [-1, 1] to [0, 1]
 
         # Convert to desired output type
