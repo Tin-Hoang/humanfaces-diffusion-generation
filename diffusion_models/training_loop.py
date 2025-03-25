@@ -169,35 +169,13 @@ def train_loop(
                 # Generate and save sample images
                 if is_conditional:
                     # Create a pipeline for visualization
-                    if hasattr(config, "use_latent_conditioning") and config.use_latent_conditioning:
+                    if vae is not None:
                         # Create conditional pipeline with VAE for latent conditioning
-                        # Move grid attributes to device
-                        grid_attributes = grid_attributes.to(config.device)
-                        
-                        # Create a serializable embedder for saving/loading compatibility
-                        serializable_embedder = AttributeEmbedder(
-                            input_dim=config.num_attributes,
-                            hidden_dim=512  # Match the hidden dimension used in training
-                        )
-                        
-                        # Copy weights from training embedder to serializable embedder
-                        if isinstance(attribute_embedder, AttributeEmbedder):
-                            # Already using the serializable version
-                            serializable_embedder = attribute_embedder
-                        else:
-                            # Need to convert from old version
-                            with torch.no_grad():
-                                serializable_embedder.proj.weight.copy_(attribute_embedder.proj.weight)
-                                serializable_embedder.proj.bias.copy_(attribute_embedder.proj.bias)
-                        
-                        serializable_embedder = serializable_embedder.to(config.device)
-                        
-                        # Create the pipeline with serializable embedder
                         pipeline = AttributeDiffusionPipeline(
                             unet=accelerator.unwrap_model(model),
                             vae=vae,
                             scheduler=noise_scheduler,
-                            attribute_proj=serializable_embedder
+                            attribute_proj=attribute_embedder
                         )
                     else:
                         # Conditional pipeline with direct pixel-space
