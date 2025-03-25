@@ -38,7 +38,7 @@ def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, Attribut
     Returns:
         Tuple of (UNet2DConditionModel, AttributeEmbedder)
     """
-    # Create the UNet model
+    # Create the UNet model with reduced size
     model = UNet2DConditionModel(
         # Image parameters
         sample_size=config.image_size,  # 128x128 images
@@ -46,24 +46,24 @@ def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, Attribut
         out_channels=3,  # RGB output
         
         # Architecture parameters
-        cross_attention_dim=64,  # Dimension of attribute embeddings after projection
-        layers_per_block=2,  # Number of ResNet layers per block
+        cross_attention_dim=32,  # Reduced from 64 to 32
+        layers_per_block=1,  # Reduced from 2 to 1
         
-        # Channel dimensions for each block (from small to large)
-        block_out_channels=(128, 256, 384, 512),
+        # Channel dimensions for each block (reduced)
+        block_out_channels=(64, 128, 192, 256),  # Reduced from (128, 256, 384, 512)
         
         # Downsampling blocks with attention
         down_block_types=(
             "CrossAttnDownBlock2D",    # 128x128 -> 64x64
             "CrossAttnDownBlock2D",     # 64x64 -> 32x32
-            "CrossAttnDownBlock2D",     # 32x32 -> 16x16
+            "DownBlock2D",              # 32x32 -> 16x16
             "DownBlock2D",              # 16x16 -> 8x8
         ),
         
         # Upsampling blocks with attention (reverse order)
         up_block_types=(
             "UpBlock2D",               # 8x8 -> 16x16
-            "CrossAttnUpBlock2D",      # 16x16 -> 32x32
+            "UpBlock2D",               # 16x16 -> 32x32
             "CrossAttnUpBlock2D",      # 32x32 -> 64x64
             "CrossAttnUpBlock2D",      # 64x64 -> 128x128
         ),
@@ -77,12 +77,17 @@ def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, Attribut
         norm_num_groups=32,  # Number of groups for group normalization
         norm_eps=1e-5,  # Epsilon for normalization
         cross_attention_norm="layer_norm",  # Use layer normalization for cross attention
+        
+        # Memory optimizations
+        use_linear_projection=True,  # Use linear projection for attention to save memory
+        attention_head_dim=8,  # Reduced attention head dimension
+        num_attention_heads=4,  # Reduced number of attention heads
     )
     
-    # Create the attribute embedder
+    # Create the attribute embedder with reduced hidden size
     attribute_embedder = AttributeEmbedder(
         num_attributes=config.num_attributes,
-        hidden_size=64  # Same as cross_attention_dim
+        hidden_size=32  # Reduced from 64 to 32 to match cross_attention_dim
     )
     
     return model, attribute_embedder 
