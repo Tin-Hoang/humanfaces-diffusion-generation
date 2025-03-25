@@ -41,7 +41,8 @@ def train_loop(
     is_conditional=False,
     grid_attributes=None,
     val_attributes=None,
-    attribute_embedder=None
+    attribute_embedder=None,
+    vae=None
 ):
     """Main training loop.
     
@@ -58,6 +59,7 @@ def train_loop(
         grid_attributes: Optional tensor of attributes for grid visualization
         val_attributes: Optional tensor of attributes for FID validation
         attribute_embedder: Optional module to project attributes to hidden states
+        vae: Optional VAE model
     """
     # Initialize accelerator and tensorboard logging
     accelerator = Accelerator(
@@ -97,7 +99,9 @@ def train_loop(
         model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
             model, optimizer, train_dataloader, lr_scheduler
         )
-        
+    if vae is not None:
+        vae = accelerator.prepare(vae)
+
     if val_dataloader:
         val_dataloader = accelerator.prepare(val_dataloader)
 
@@ -107,6 +111,8 @@ def train_loop(
     for epoch in range(config.num_epochs):
         progress_bar = tqdm(total=len(train_dataloader), disable=not accelerator.is_local_main_process)
         progress_bar.set_description(f"Epoch {epoch}")
+        if vae is not None:
+            vae.eval()  # VAE is pretrained, no training needed
 
         for step, batch in enumerate(train_dataloader):
             # Handle both conditional and unconditional cases
@@ -116,7 +122,6 @@ def train_loop(
                 clean_images = batch["images"]
             
             # Sample noise to add to the images
-            noise = torch.randn(clean_images.shape).to(clean_images.device)
             bs = clean_images.shape[0]
 
             # Sample a random timestep for each image
@@ -124,8 +129,20 @@ def train_loop(
                 0, noise_scheduler.config.num_train_timesteps, (bs,), device=clean_images.device
             ).long()
 
+            if vae is not None:
+                # For conditional model - encode images to latent space
+                with torch.no_grad():
+                    latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 64, 64)
+                    latents = latents * vae.config.scaling_factor
+                latents = latents.to(clean_images.device)
+                noise = torch.randn_like(latents).to(latents.device)
+            else:
+                # For unconditional model - use the original images
+                noise = torch.randn(clean_images.shape).to(clean_images.device)
+                latents = clean_images
+
             # Add noise to the clean images according to the noise magnitude at each timestep
-            noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
+            noisy_images = noise_scheduler.add_noise(latents, noise, timesteps)
 
             with accelerator.accumulate(model):
                 # Predict the noise residual

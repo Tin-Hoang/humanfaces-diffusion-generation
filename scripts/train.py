@@ -3,6 +3,7 @@
 from datetime import datetime
 import wandb
 import torch
+from diffusers import AutoencoderKL
 
 from diffusion_models.config import parse_args
 from diffusion_models.datasets.dataloader import setup_dataloader, create_attribute_dataloader
@@ -18,6 +19,10 @@ from diffusion_models.utils.attribute_utils import (
 def main():
     # Parse command line arguments and get config
     config = parse_args()
+    
+    # Set device
+    config.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"\nUsing device: {config.device}")
     
     # Print config
     print("=" * 80)
@@ -38,6 +43,15 @@ def main():
     elif config.model == "conditional_unet":
         from diffusion_models.models.conditional_unet import create_model
         model, attribute_embedder = create_model(config)
+    elif config.model == "latent_conditional_unet":
+        from diffusion_models.models.latent_conditional_unet import create_model
+        model, attribute_embedder = create_model(config)
+        vae = AutoencoderKL.from_pretrained(
+                "stable-diffusion-v1-5/stable-diffusion-v1-5", 
+                subfolder="vae", 
+                torch_dtype=torch.float32
+            )
+        vae = vae.to(config.device)
     elif config.model == "unet_2":
         raise NotImplementedError("Unet 2 is not implemented yet")
     elif config.model == "unet_3":
@@ -149,7 +163,10 @@ def main():
                 num_samples=config.val_n_samples,
                 num_attributes=config.num_attributes
             )
-
+    print("val_attributes shape: ", val_attributes.shape)
+    print("grid_attributes shape: ", grid_attributes.shape)
+    input("Press Enter to continue...")
+    
     # Run training loop with attribute vectors and embedder
     train_loop(
         config=config,
@@ -163,7 +180,8 @@ def main():
         is_conditional=config.is_conditional,
         grid_attributes=grid_attributes,
         val_attributes=val_attributes,
-        attribute_embedder=attribute_embedder
+        attribute_embedder=attribute_embedder,
+        vae=vae
     )
 
     # Close wandb run
@@ -173,3 +191,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

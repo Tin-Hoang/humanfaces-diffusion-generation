@@ -1,0 +1,95 @@
+"""Conditional UNet model for attribute-based latent diffusion."""
+
+import torch
+import torch.nn as nn
+from diffusers import UNet2DConditionModel
+
+from diffusion_models.config import TrainingConfig
+
+
+# Custom conditioning projection layer for 40 attributes
+class AttributeEmbedder(nn.Module):
+    def __init__(self, num_attributes=40, hidden_dim=512):  # Reduced hidden_dim for efficiency
+        """
+        Projects a multi-hot attribute vector into a shape compatible with UNet cross-attention.
+        
+        Args:
+            num_attributes: Number of attributes (40).
+            hidden_dim: Reduced to 512 (from 768) to save memory.
+        """
+        super().__init__()
+        self.proj = nn.Linear(num_attributes, hidden_dim)  # Single token: sequence_length=1
+        self.hidden_dim = hidden_dim
+
+    def forward(self, attributes):
+        """
+        Args:
+            attributes: Tensor of shape (batch_size, 40)
+        Returns:
+            Projected tensor of shape (batch_size, 1, hidden_dim)
+        """
+        proj = self.proj(attributes)  # (batch_size, hidden_dim)
+        return proj.unsqueeze(1)      # (batch_size, 1, hidden_dim)
+    
+
+def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, AttributeEmbedder]:
+    """Create and return the Conditional UNet2D model and attribute embedder.
+    
+    This model is designed for latent diffusion, operating in the VAE latent space
+    and conditioned on attribute vectors. The architecture is memory-efficient while
+    maintaining strong conditioning through cross-attention at key resolutions.
+    
+    Args:
+        config: Training configuration object
+        
+    Returns:
+        Tuple of (UNet2DConditionModel, AttributeEmbedder)
+    """
+    # Create the UNet model for latent diffusion
+    model = UNet2DConditionModel(
+        # Latent space parameters
+        sample_size=config.image_size,  # Input/output spatial size
+        in_channels=4,    # VAE latent space channels
+        out_channels=4,   # Noise prediction in latent space
+        
+        # Downsampling blocks with selective attention
+        down_block_types=(
+            "CrossAttnDownBlock2D",    # 128x128 -> 64x64 with cross-attention
+            "CrossAttnDownBlock2D",     # 64x64 -> 32x32 with cross-attention
+            "DownBlock2D",              # 32x32 -> 16x16 standard downsampling
+            "DownBlock2D",              # 16x16 -> 8x8 standard downsampling
+        ),
+        
+        # Upsampling blocks with symmetric attention
+        up_block_types=(
+            "UpBlock2D",               # 8x8 -> 16x16 standard upsampling
+            "UpBlock2D",               # 16x16 -> 32x32 standard upsampling
+            "CrossAttnUpBlock2D",      # 32x32 -> 64x64 with cross-attention
+            "CrossAttnUpBlock2D",      # 64x64 -> 128x128 with cross-attention
+        ),
+        
+        # Architecture parameters
+        block_out_channels=(64, 128, 256, 256),  # Channel dimensions per block
+        layers_per_block=1,                      # Single ResNet layer per block
+        cross_attention_dim=512,                 # Dimension of cross-attention features
+        attention_head_dim=8,                    # Size of attention heads
+        
+        # Model configuration
+        use_linear_projection=True,              # Memory-efficient attention
+        num_class_embeds=None,                   # No class conditioning
+        only_cross_attention=False,              # Enable both self and cross attention
+        
+        # Architecture details
+        act_fn="silu",                          # SiLU activation function
+        norm_num_groups=32,                      # Group normalization
+        norm_eps=1e-5,                          # Numerical stability
+        cross_attention_norm="layer_norm",       # Cross-attention normalization
+    )
+    
+    # Create the attribute embedder
+    attribute_embedder = AttributeEmbedder(
+        num_attributes=config.num_attributes,
+        hidden_dim=512  # Match cross_attention_dim for compatibility
+    )
+    
+    return model, attribute_embedder 

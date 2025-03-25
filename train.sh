@@ -36,8 +36,8 @@
 
 
    python scripts/train.py \
-    --model conditional_unet \
-    --run-name "attribute_conditionalunet2d_128_ddpm_2700train" \
+    --model latent_conditional_unet \
+    --run-name "attribute_latentconditionalunet2d_128_ddpm_2700train" \
     --image-size 128 \
     --train-batch-size 16 \
     --eval-batch-size 16 \
