@@ -13,6 +13,7 @@ import wandb
 from diffusion_models.utils.generation import generate_grid_images, generate_grid_images_attributes
 from diffusion_models.utils.metrics import generate_and_calculate_fid, generate_and_calculate_fid_attributes
 from diffusion_models.utils.attribute_pipeline import AttributeDiffusionPipeline
+from diffusion_models.models.attribute_embedder import AttributeEmbedder
 
 
 def train_loop(
@@ -21,7 +22,7 @@ def train_loop(
     noise_scheduler, 
     optimizer, 
     train_dataloader, 
-    lr_scheduler, 
+    lr_scheduler=None, 
     val_dataloader=None, 
     preprocess=None,
     is_conditional=False,
@@ -167,12 +168,41 @@ def train_loop(
             if (epoch + 1) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:
                 # Generate and save sample images
                 if is_conditional:
-                    pipeline = AttributeDiffusionPipeline(
-                        unet=accelerator.unwrap_model(model),
-                        vae=vae,
-                        scheduler=noise_scheduler,
-                        attribute_proj=attribute_embedder
-                    )
+                    # Create a pipeline for visualization
+                    if hasattr(config, "use_latent_conditioning") and config.use_latent_conditioning:
+                        # Create conditional pipeline with VAE for latent conditioning
+                        # Move grid attributes to device
+                        grid_attributes = grid_attributes.to(config.device)
+                        
+                        # Create a serializable embedder for saving/loading compatibility
+                        serializable_embedder = AttributeEmbedder(
+                            input_dim=config.num_attributes,
+                            hidden_dim=512  # Match the hidden dimension used in training
+                        )
+                        
+                        # Copy weights from training embedder to serializable embedder
+                        if isinstance(attribute_embedder, AttributeEmbedder):
+                            # Already using the serializable version
+                            serializable_embedder = attribute_embedder
+                        else:
+                            # Need to convert from old version
+                            with torch.no_grad():
+                                serializable_embedder.proj.weight.copy_(attribute_embedder.proj.weight)
+                                serializable_embedder.proj.bias.copy_(attribute_embedder.proj.bias)
+                        
+                        serializable_embedder = serializable_embedder.to(config.device)
+                        
+                        # Create the pipeline with serializable embedder
+                        pipeline = AttributeDiffusionPipeline(
+                            unet=accelerator.unwrap_model(model),
+                            vae=vae,
+                            scheduler=noise_scheduler,
+                            attribute_proj=serializable_embedder
+                        )
+                    else:
+                        # Conditional pipeline with direct pixel-space
+                        raise NotImplementedError("Pixel-space conditional generation not supported yet")
+                    
                     # Move grid attributes to correct device
                     grid_attributes = grid_attributes.to(accelerator.device)
                     _, image_grid = generate_grid_images_attributes(

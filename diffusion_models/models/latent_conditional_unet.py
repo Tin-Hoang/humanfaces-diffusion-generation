@@ -6,31 +6,9 @@ from diffusers import UNet2DConditionModel
 
 from diffusion_models.config import TrainingConfig
 
+# Import the AttributeEmbedder from the attribute_embedder module
+from diffusion_models.models.attribute_embedder import AttributeEmbedder
 
-# Custom conditioning projection layer for 40 attributes
-class AttributeEmbedder(nn.Module):
-    def __init__(self, num_attributes=40, hidden_dim=512):  # Reduced hidden_dim for efficiency
-        """
-        Projects a multi-hot attribute vector into a shape compatible with UNet cross-attention.
-        
-        Args:
-            num_attributes: Number of attributes (40).
-            hidden_dim: Reduced to 512 (from 768) to save memory.
-        """
-        super().__init__()
-        self.proj = nn.Linear(num_attributes, hidden_dim)  # Single token: sequence_length=1
-        self.hidden_dim = hidden_dim
-
-    def forward(self, attributes):
-        """
-        Args:
-            attributes: Tensor of shape (batch_size, 40)
-        Returns:
-            Projected tensor of shape (batch_size, 1, hidden_dim)
-        """
-        proj = self.proj(attributes)  # (batch_size, hidden_dim)
-        return proj.unsqueeze(1)      # (batch_size, 1, hidden_dim)
-    
 
 def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, AttributeEmbedder]:
     """Create and return the Conditional UNet2D model and attribute embedder.
@@ -86,10 +64,17 @@ def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, Attribut
         cross_attention_norm="layer_norm",       # Cross-attention normalization
     )
     
-    # Create the attribute embedder
+    # Create attribute embedder to project attribute vectors to conditioning dimension
     attribute_embedder = AttributeEmbedder(
-        num_attributes=config.num_attributes,
-        hidden_dim=512  # Match cross_attention_dim for compatibility
+        input_dim=config.num_attributes,              # 40 binary attributes
+        hidden_dim=512                                # Match cross_attention_dim
     )
+    
+    if hasattr(config, "device"):
+        model = model.to(config.device)
+        attribute_embedder = attribute_embedder.to(config.device)
+        
+    print(f"\nCreated UNet2DConditionModel with {sum(p.numel() for p in model.parameters()):,} parameters")
+    print(f"Created AttributeEmbedder: {attribute_embedder}")
     
     return model, attribute_embedder 

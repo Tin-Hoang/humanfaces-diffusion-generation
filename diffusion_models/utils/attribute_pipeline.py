@@ -1,7 +1,17 @@
 import torch
 from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDPMScheduler
 from torch import nn
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, Callable
+from PIL import Image
+import numpy as np
+from diffusers.utils import is_transformers_available
+from diffusers.models.modeling_utils import ModelMixin
+from diffusers.models.attention_processor import AttnProcessor
+from diffusers.configuration_utils import register_to_config
+from tqdm import tqdm
+
+# Import AttributeEmbedder from models
+from diffusion_models.models.attribute_embedder import AttributeEmbedder
 
 
 class AttributeDiffusionPipeline(DiffusionPipeline):
@@ -12,14 +22,14 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         unet (UNet2DConditionModel): The trained UNet for denoising.
         vae (AutoencoderKL): The pretrained VAE for encoding/decoding latents.
         scheduler (DDPMScheduler): The noise scheduler for diffusion steps.
-        attribute_proj (nn.Module): Projection layer for multi-hot attribute vectors.
+        attribute_proj (AttributeEmbedder): Projection layer for multi-hot attribute vectors.
     """
     def __init__(
         self,
         unet: UNet2DConditionModel,
         vae: AutoencoderKL,
         scheduler: DDPMScheduler,
-        attribute_proj: nn.Module
+        attribute_proj: AttributeEmbedder
     ):
         super().__init__()
         self.register_modules(
@@ -83,7 +93,6 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         print(f"\nGenerating {batch_size} images | Attributes shape: {attributes.shape}")
         
         # Denoising loop with progress bar
-        from tqdm import tqdm
         with tqdm(total=len(self.scheduler.timesteps), desc="Denoising") as pbar:
             for t in self.scheduler.timesteps:
                 # Predict noise
@@ -111,8 +120,6 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             
             # Convert to CPU immediately to free GPU memory
             if output_type == "pil":
-                from PIL import Image
-                import numpy as np
                 for img in batch_images:
                     img_np = img.cpu().float().numpy().transpose(1, 2, 0) * 255
                     all_images.append(Image.fromarray(img_np.astype(np.uint8)))
