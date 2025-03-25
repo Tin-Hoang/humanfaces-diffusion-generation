@@ -59,6 +59,6 @@
     --num-train-timesteps 1000 \
     --overwrite-output-dir \
     --seed 42 \
-    --use-wandb True \
+    --use-wandb False \
     --wandb-project "EEEM068_Diffusion_Models" \
     --wandb-entity "tin-hoang"

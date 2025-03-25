@@ -19,7 +19,10 @@ class AttributeEmbedder(nn.Module):
         )
         
     def forward(self, x):
-        return self.projection(x)
+        # Input shape: (batch_size, num_attributes)
+        # Output shape: (batch_size, 1, hidden_size) for cross-attention
+        x = self.projection(x)  # (batch_size, hidden_size)
+        return x.unsqueeze(1)  # Add sequence dimension
 
 
 def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, AttributeEmbedder]:

@@ -36,7 +36,6 @@ class AttributeDataset(Dataset):
         # Get list of existing images in the directory
         existing_images = set(f"{f}" for f in os.listdir(image_dir) if f.endswith('.jpg'))
         print(f"\nFound {len(existing_images)} images in directory")
-        print(f"First few images in directory: {list(existing_images)[:5]}")
         
         # Read the attribute file
         # Skip the first line (number of images) and use the second line as headers
@@ -60,16 +59,10 @@ class AttributeDataset(Dataset):
             names=['image_id'] + attribute_names,  # Use our own column names
             dtype=str  # Read all columns as strings initially
         )
-        
-        print(f"Initial DataFrame shape: {self.attributes_df.shape}")
-        print(f"First few rows before processing:\n{self.attributes_df.head()}")
-        
         # Ensure image_id has .jpg extension
         self.attributes_df['image_id'] = self.attributes_df['image_id'].apply(
             lambda x: f"{x}.jpg" if not x.endswith('.jpg') else x
         )
-        print(f"\nFirst few image_ids after extension processing:\n{self.attributes_df['image_id'].head()}")
-        
         # Convert attribute columns to float32
         for col in self.attributes_df.columns[1:]:
             # First convert to numeric
@@ -108,8 +101,6 @@ class AttributeDataset(Dataset):
         self.attribute_names = self.attributes_df.columns[1:].tolist()
         
         print(f"\nFinal dataset size: {len(self.attributes_df)} images with attributes out of {len(existing_images)} images in directory")
-        print("\nSample of converted attributes (first row):")
-        print(self.attributes_df.iloc[0, 1:].head())
         
     def __len__(self) -> int:
         """Return the total number of samples in the dataset."""
