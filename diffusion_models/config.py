@@ -89,9 +89,6 @@ class TrainingConfig:
             self.output_dir = f"checkpoints/{self.run_name}"
             print(f"No output_dir provided, using default: {self.output_dir}")
 
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
-
         # train_dir could be from Hugging Face or local directory
         if not self.train_dir or not os.path.exists(self.train_dir):
             raise FileNotFoundError(f"Training directory not found: {self.train_dir}")
