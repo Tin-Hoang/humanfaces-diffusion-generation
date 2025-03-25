@@ -38,7 +38,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         generator: Optional[torch.Generator] = None,
         output_type: str = "pil",  # "pil" or "tensor"
         return_dict: bool = True,
-        decode_batch_size: int = 1  # Process VAE decoding in smaller batches
+        decode_batch_size: int = 2  # Process VAE decoding in smaller batches
     ) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
         """
         Generate images conditioned on multi-hot attribute vectors.
@@ -92,11 +92,8 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
                 latents = self.scheduler.step(noise_pred, t, latents).prev_sample
                 del noise_pred
                 pbar.update(1)
-                if t % 100 == 0:  # Check every 100 steps
-                    print(f"Step {t}, Memory: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
-        
+
         # Decode latents to images in smaller batches to save memory
-        print("Decoding latents to images in batches...")
         latents = latents / self.vae.config.scaling_factor
         
         # Process in smaller batches
@@ -107,7 +104,6 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             
             # Free memory before decoding
             torch.cuda.empty_cache()
-            print(f"Batch {i//decode_batch_size+1}/{-(-batch_size//decode_batch_size)}, Memory before decode: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
             
             # Decode batch
             batch_images = self.vae.decode(batch_latents).sample
@@ -126,7 +122,6 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             # Free decoded tensors
             del batch_images, batch_latents
             torch.cuda.empty_cache()
-            print(f"Batch {i//decode_batch_size+1} done, Memory after: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
         
         # Combine results if not PIL images
         if output_type != "pil":

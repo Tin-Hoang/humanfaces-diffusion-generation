@@ -184,7 +184,7 @@ def generate_grid_images_attributes(
         generator=generator,
         attributes=attributes,  # Pass attributes directly
         output_type="pil",
-        decode_batch_size=1  # Process one image at a time for VAE decoding to save memory
+        decode_batch_size=2  # Process 2 image at a time for VAE decoding to save memory
     )
     images = output["sample"]
 
