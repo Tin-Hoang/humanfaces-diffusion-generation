@@ -3,10 +3,11 @@
 import torch
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torch.utils.data import DataLoader
-from diffusers import DDPMPipeline
-from typing import Optional
+from diffusers import DDPMPipeline, DiffusionPipeline
+from typing import Optional, Union
 from datasets import load_dataset
 from torchvision import transforms
+import os
 
 
 def generate_and_calculate_fid(
@@ -138,4 +139,82 @@ def calculate_fid_from_folders(
     print("Calculating final FID score...")
     fid_score = float(fid.compute())
     print(f"FID Score: {fid_score:.4f}")
+    return fid_score
+
+
+def generate_and_calculate_fid_attributes(
+    pipeline: DiffusionPipeline,
+    val_dataloader: DataLoader,
+    device: torch.device,
+    preprocess,
+    num_train_timesteps: int,
+    num_samples: int,
+    attributes: torch.Tensor,
+) -> float:
+    """Generate images with attribute conditioning and calculate FID score.
+    
+    Note: The pipeline generates images in [-1, 1] range, but FID calculation
+    expects images in [0, 1] range. We handle this conversion here.
+    
+    Args:
+        pipeline: The conditional diffusion pipeline
+        val_dataloader: Validation dataloader
+        device: Device to use for generation
+        preprocess: Preprocessing transform
+        num_train_timesteps: Number of timesteps for inference
+        num_samples: Number of images to generate
+        attributes: Tensor of shape (num_samples, num_attributes) containing
+                   the attribute vectors to condition on
+    
+    Returns:
+        FID score between generated and real images
+    """
+    # Move pipeline to device
+    pipeline = pipeline.to(device)
+    
+    # Initialize FID metric
+    fid = FrechetInceptionDistance(normalize=True).to(device)
+    
+    with torch.no_grad():
+        # Generate images with attribute conditioning
+        remaining_samples = num_samples
+        sample_idx = 0
+        
+        while remaining_samples > 0:
+            val_batch_size = val_dataloader.batch_size or 16
+            batch_size = min(val_batch_size, remaining_samples)
+            curr_attributes = attributes[sample_idx:sample_idx + batch_size]
+            
+            # Generate images
+            generator = torch.Generator(device=device).manual_seed(sample_idx)
+            output = pipeline(
+                batch_size=batch_size,
+                generator=generator,
+                num_inference_steps=num_train_timesteps,
+                class_labels=curr_attributes,
+                output_type="pt"  # Return PyTorch tensors
+            )
+            sample_tensors = output.images.to(device)
+            
+            # Convert from [-1, 1] to [0, 1] range for FID
+            sample_tensors = (sample_tensors * 0.5 + 0.5).clamp(0, 1)
+            fid.update(sample_tensors, real=False)
+            
+            sample_idx += batch_size
+            remaining_samples -= batch_size
+        
+        # Process validation images
+        for batch in val_dataloader:
+            if isinstance(batch, (tuple, list)):
+                real_images = batch[0]  # Assuming images are the first element
+            else:
+                real_images = batch["images"]
+            
+            real_images = real_images.to(device)
+            # Convert from [-1, 1] to [0, 1] range for FID
+            real_images = (real_images * 0.5 + 0.5).clamp(0, 1)
+            fid.update(real_images, real=True)
+    
+    # Calculate and return FID score
+    fid_score = float(fid.compute())
     return fid_score

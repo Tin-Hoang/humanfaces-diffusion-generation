@@ -1,12 +1,18 @@
+"""Training script for diffusion models."""
+
 from datetime import datetime
 import wandb
 import torch
 
 from diffusion_models.config import parse_args
-from diffusion_models.datasets.dataloader import setup_dataloader
+from diffusion_models.datasets.dataloader import setup_dataloader, create_attribute_dataloader
 from diffusion_models.training_loop import train_loop
 from diffusion_models.noise_schedulers.ddpm_scheduler import create_noise_scheduler
 from diffusers.optimization import get_cosine_schedule_with_warmup
+from diffusion_models.utils.attribute_utils import (
+    create_sample_attributes,
+    create_multi_hot_attributes
+)
 
 
 def main():
@@ -24,12 +30,14 @@ def main():
     if config.model == "unet_notebook":
         from diffusion_models.models.unet_notebook import create_model
         model = create_model(config)
+        attribute_embedder = None
     elif config.model == "dit":
         from diffusion_models.models.dit import create_model
         model = create_model(config)
+        attribute_embedder = None
     elif config.model == "conditional_unet":
         from diffusion_models.models.conditional_unet import create_model
-        model = create_model(config)
+        model, attribute_embedder = create_model(config)
     elif config.model == "unet_2":
         raise NotImplementedError("Unet 2 is not implemented yet")
     elif config.model == "unet_3":
@@ -48,22 +56,49 @@ def main():
         )
     
     # Setup training dataset and preprocessing
-    train_dataloader, preprocess = setup_dataloader(
-        data_source=config.train_dir,
-        batch_size=config.train_batch_size,
-        image_size=config.image_size,
-        shuffle=True
-    )
+    if config.is_conditional:
+        # Use attribute dataloader for conditional training
+        train_dataloader = create_attribute_dataloader(
+            image_dir=config.train_dir,
+            attribute_label_path=config.attribute_file,
+            batch_size=config.train_batch_size,
+            num_workers=config.num_workers,
+            shuffle=True
+        )
+        # Get preprocessing from regular dataloader setup
+        _, preprocess = setup_dataloader(
+            data_source=config.train_dir,
+            batch_size=config.train_batch_size,
+            image_size=config.image_size,
+            shuffle=True
+        )
+    else:
+        # Use regular dataloader for unconditional training
+        train_dataloader, preprocess = setup_dataloader(
+            data_source=config.train_dir,
+            batch_size=config.train_batch_size,
+            image_size=config.image_size,
+            shuffle=True
+        )
     
     # Setup validation dataset if val_dir is provided
     val_dataloader = None
     if config.val_dir:
-        val_dataloader, _ = setup_dataloader(
-            data_source=config.val_dir,
-            batch_size=config.eval_batch_size,
-            image_size=config.image_size,
-            shuffle=False
-        )
+        if config.is_conditional:
+            val_dataloader = create_attribute_dataloader(
+                image_dir=config.val_dir,
+                attribute_label_path=config.attribute_file,
+                batch_size=config.eval_batch_size,
+                num_workers=config.num_workers,
+                shuffle=False
+            )
+        else:
+            val_dataloader, _ = setup_dataloader(
+                data_source=config.val_dir,
+                batch_size=config.eval_batch_size,
+                image_size=config.image_size,
+                shuffle=False
+            )
     else:
         print("\nNo validation directory provided, skipping validation setup")
     
@@ -71,12 +106,18 @@ def main():
         num_train_timesteps=config.num_train_timesteps
     )
 
-    # Setup optimizer and learning rate scheduler separately
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay
-    )
+    # Setup optimizer and learning rate scheduler
+    if config.is_conditional and attribute_embedder is not None:
+        # Include attribute embedder parameters in optimization
+        optimizer = torch.optim.AdamW(
+            list(model.parameters()) + list(attribute_embedder.parameters()),
+            lr=config.learning_rate,
+        )
+    else:
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=config.learning_rate,
+        )
 
     lr_scheduler = get_cosine_schedule_with_warmup(
         optimizer=optimizer,
@@ -84,8 +125,51 @@ def main():
         num_training_steps=(len(train_dataloader) * config.num_epochs)
     )
 
-    # Run training loop directly with the training function
-    train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, val_dataloader, preprocess)
+    # Create attribute vectors if using conditional model
+    grid_attributes = None
+    val_attributes = None
+    if config.is_conditional:
+        # Create grid visualization attributes
+        if config.grid_attribute_indices is not None:
+            grid_attributes = create_multi_hot_attributes(
+                attribute_indices=config.grid_attribute_indices,
+                num_attributes=config.num_attributes,
+                num_samples=config.num_grid_samples
+            )
+        else:
+            # If no specific indices provided, use random combinations
+            grid_attributes = create_sample_attributes(
+                num_samples=config.num_grid_samples,
+                num_attributes=config.num_attributes
+            )
+        
+        # Create validation attributes
+        if val_dataloader is not None:
+            val_attributes = create_sample_attributes(
+                num_samples=config.val_n_samples,
+                num_attributes=config.num_attributes
+            )
+
+    # Run training loop with attribute vectors and embedder
+    train_loop(
+        config=config,
+        model=model,
+        noise_scheduler=noise_scheduler,
+        optimizer=optimizer,
+        train_dataloader=train_dataloader,
+        lr_scheduler=lr_scheduler,
+        val_dataloader=val_dataloader,
+        preprocess=preprocess,
+        is_conditional=config.is_conditional,
+        grid_attributes=grid_attributes,
+        val_attributes=val_attributes,
+        attribute_embedder=attribute_embedder
+    )
+
+    # Close wandb run
+    if config.use_wandb:
+        wandb.finish()
+
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,8 @@ import os
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import argparse
-from typing import Optional
+from typing import Optional, List
+import torch
 
 
 def str2bool(v):
@@ -46,12 +47,31 @@ class TrainingConfig:
     val_n_samples: int = 100  # Number of samples to generate for FID calculation
     num_train_timesteps: int = 1000  # num_train_timesteps for DDPM scheduler and pipeline inference
 
+    # Conditional generation parameters
+    sample_attributes: Optional[torch.Tensor] = None  # Attribute vectors for sample generation
+    is_conditional: bool = False  # Whether to use conditional generation
+    attribute_file: Optional[str] = None  # Path to the attribute labels file
+    num_attributes: int = 40  # Number of attributes (e.g., 40 for CelebA)
+
+    # Grid visualization parameters
+    grid_attribute_indices: Optional[List[int]] = None  # Specific attributes for grid visualization
+    num_grid_samples: int = 16  # Number of samples in the visualization grid
+    grid_sample_attributes: Optional[torch.Tensor] = None  # Attribute vectors for grid visualization
+
     overwrite_output_dir: bool = True  # overwrite the old model when re-running the notebook
     seed: int = 42
     use_wandb: bool = True  # Whether to use WandB logging
     wandb_project: Optional[str] = "EEEM068_Diffusion_Models"
     wandb_entity: Optional[str] = "tin-hoang"
 
+    # Training parameters
+    batch_size: int = 128
+    num_workers: int = 4
+    
+    # Model parameters
+    channels: int = 3
+    time_steps: int = 1000
+    
     def __post_init__(self):
         """Set default output_dir if not provided."""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -78,6 +98,14 @@ class TrainingConfig:
         if not self.val_dir or not os.path.exists(self.val_dir):
             # Warn the user that the validation directory does not exist
             print(f"Warning: Validation directory not inputted or not found: {self.val_dir}")
+            
+        # Set up conditional generation parameters
+        if self.is_conditional:
+            if not self.attribute_file or not os.path.exists(self.attribute_file):
+                raise FileNotFoundError(f"Attribute file not found: {self.attribute_file}")
+            if self.grid_attribute_indices is None:
+                print("No grid_attribute_indices provided, using default: [17, 20, 24, 35, 39] for Gray_Hair, Male, No_Beard, Wearing_Hat, and Young")
+                self.grid_attribute_indices = [17, 20, 24, 35, 39]
 
 
 def parse_args() -> TrainingConfig:
@@ -128,6 +156,21 @@ def parse_args() -> TrainingConfig:
                       help="Number of samples for FID calculation")
     parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"],
                       help="Number of training timesteps")
+    
+    # Add conditional generation arguments
+    parser.add_argument("--is-conditional", type=str2bool, default=defaults["is_conditional"],
+                      help="Whether to use conditional generation")
+    parser.add_argument("--attribute-file", type=str, default=defaults["attribute_file"],
+                      help="Path to the attribute labels file")
+    parser.add_argument("--num-attributes", type=int, default=defaults["num_attributes"],
+                      help="Number of attributes in the dataset (e.g., 40 for CelebA)")
+
+    # Add grid visualization parameters
+    parser.add_argument("--grid-attribute-indices", type=int, nargs="+", default=defaults["grid_attribute_indices"],
+                      help="List of attribute indices for grid visualization (e.g., --grid-attribute-indices 0 5 10)")
+    parser.add_argument("--num-grid-samples", type=int, default=defaults["num_grid_samples"],
+                      help="Number of samples in the visualization grid")
+
     parser.add_argument("--overwrite-output-dir", action="store_true",
                       help="Overwrite output directory if it exists")
     parser.add_argument("--seed", type=int, default=defaults["seed"],

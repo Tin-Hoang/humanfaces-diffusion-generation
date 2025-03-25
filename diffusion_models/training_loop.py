@@ -10,8 +10,12 @@ from accelerate import Accelerator
 from diffusers import DDPMPipeline
 import wandb
 
-from diffusion_models.utils.generation import generate_grid_images
-from diffusion_models.utils.metrics import generate_and_calculate_fid
+from diffusion_models.utils.generation import generate_grid_images, generate_grid_images_attributes
+from diffusion_models.utils.metrics import generate_and_calculate_fid, generate_and_calculate_fid_attributes
+from diffusion_models.utils.attribute_utils import (
+    create_sample_attributes,
+    create_multi_hot_attributes
+)
 
 
 def get_full_repo_name(model_id: str, organization: str = None, token: str = None):
@@ -24,8 +28,37 @@ def get_full_repo_name(model_id: str, organization: str = None, token: str = Non
     else:
         return f"{organization}/{model_id}"
 
-def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, val_dataloader, preprocess):
-    """Main training loop."""
+
+def train_loop(
+    config, 
+    model, 
+    noise_scheduler, 
+    optimizer, 
+    train_dataloader, 
+    lr_scheduler, 
+    val_dataloader=None, 
+    preprocess=None,
+    is_conditional=False,
+    grid_attributes=None,
+    val_attributes=None,
+    attribute_embedder=None
+):
+    """Main training loop.
+    
+    Args:
+        config: Training configuration
+        model: The UNet model to train
+        noise_scheduler: The noise scheduler
+        optimizer: The optimizer
+        train_dataloader: Training data loader
+        lr_scheduler: Learning rate scheduler
+        val_dataloader: Optional validation data loader
+        preprocess: Optional preprocessing transform
+        is_conditional: Whether the model is conditional on attributes
+        grid_attributes: Optional tensor of attributes for grid visualization
+        val_attributes: Optional tensor of attributes for FID validation
+        attribute_embedder: Optional module to project attributes to hidden states
+    """
     # Initialize accelerator and tensorboard logging
     accelerator = Accelerator(
         mixed_precision=config.mixed_precision,
@@ -56,9 +89,15 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
     best_epoch = 0
 
     # Prepare everything
-    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, lr_scheduler
-    )
+    if is_conditional and attribute_embedder is not None:
+        model, optimizer, train_dataloader, lr_scheduler, attribute_embedder = accelerator.prepare(
+            model, optimizer, train_dataloader, lr_scheduler, attribute_embedder
+        )
+    else:
+        model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+            model, optimizer, train_dataloader, lr_scheduler
+        )
+        
     if val_dataloader:
         val_dataloader = accelerator.prepare(val_dataloader)
 
@@ -70,7 +109,12 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
         progress_bar.set_description(f"Epoch {epoch}")
 
         for step, batch in enumerate(train_dataloader):
-            clean_images = batch["images"]
+            # Handle both conditional and unconditional cases
+            if is_conditional:
+                clean_images, attributes = batch
+            else:
+                clean_images = batch["images"]
+            
             # Sample noise to add to the images
             noise = torch.randn(clean_images.shape).to(clean_images.device)
             bs = clean_images.shape[0]
@@ -85,7 +129,15 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
 
             with accelerator.accumulate(model):
                 # Predict the noise residual
-                noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+                if is_conditional and attribute_embedder is not None:
+                    # Project attributes to hidden states
+                    encoder_hidden_states = attribute_embedder(attributes)
+                    # For conditional model, pass projected attributes as encoder_hidden_states
+                    noise_pred = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states, return_dict=False)[0]
+                else:
+                    # For unconditional model
+                    noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+                
                 loss = F.mse_loss(noise_pred, noise)
                 accelerator.backward(loss)
 
@@ -109,6 +161,7 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
 
         # After each epoch you optionally sample some demo images and save the model
         if accelerator.is_main_process:
+            # For unconditional generation, use DDPMPipeline
             pipeline = DDPMPipeline(
                 unet=accelerator.unwrap_model(model),
                 scheduler=noise_scheduler,
@@ -116,7 +169,23 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
 
             if (epoch + 1) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:
                 # Generate and save sample images
-                _, image_grid = generate_grid_images(config, epoch, pipeline)
+                if is_conditional:
+                    # Move grid attributes to correct device
+                    if grid_attributes is not None:
+                        grid_attributes = grid_attributes.to(accelerator.device)
+                        # Project attributes for visualization
+                        if attribute_embedder is not None:
+                            grid_hidden_states = attribute_embedder(grid_attributes)
+                        _, image_grid = generate_grid_images_attributes(
+                            config, epoch, pipeline, 
+                            attributes=grid_hidden_states
+                        )
+                    else:
+                        # Fallback to unconditional if no attributes provided
+                        _, image_grid = generate_grid_images(config, epoch, pipeline)
+                else:
+                    # For unconditional model
+                    _, image_grid = generate_grid_images(config, epoch, pipeline)
 
                 # Log grid images to WandB
                 if config.use_wandb:
@@ -128,14 +197,33 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                 # Calculate FID if validation dataset is available
                 if val_dataloader:
                     print(f"Calculating FID score at epoch {epoch + 1}...")
-                    fid_score = generate_and_calculate_fid(
-                        pipeline=pipeline,
-                        val_dataloader=val_dataloader,
-                        device=accelerator.device,
-                        preprocess=preprocess,
-                        num_train_timesteps=config.num_train_timesteps,
-                        num_samples=config.val_n_samples
-                    )
+                    
+                    if is_conditional and val_attributes is not None:
+                        # Move validation attributes to correct device
+                        val_attributes = val_attributes.to(accelerator.device)
+                        # Project validation attributes
+                        if attribute_embedder is not None:
+                            val_hidden_states = attribute_embedder(val_attributes)
+                        # Use attribute-specific FID calculation
+                        fid_score = generate_and_calculate_fid_attributes(
+                            pipeline=pipeline,
+                            val_dataloader=val_dataloader,
+                            device=accelerator.device,
+                            preprocess=preprocess,
+                            num_train_timesteps=config.num_train_timesteps,
+                            num_samples=config.val_n_samples,
+                            attributes=val_hidden_states
+                        )
+                    else:
+                        # Use standard FID calculation for unconditional model
+                        fid_score = generate_and_calculate_fid(
+                            pipeline=pipeline,
+                            val_dataloader=val_dataloader,
+                            device=accelerator.device,
+                            preprocess=preprocess,
+                            num_train_timesteps=config.num_train_timesteps,
+                            num_samples=config.val_n_samples
+                        )
                     print(f"FID Score: {fid_score:.2f}")
                     
                     # Log to WandB

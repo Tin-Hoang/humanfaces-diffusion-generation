@@ -16,14 +16,14 @@ class AttributeDataset(Dataset):
     
     Args:
         image_dir (str): Directory containing the image files
-        attribute_file_path (str): Path to the attribute label file
+        attribute_label_path (str): Path to the attribute label file
         transform (Optional[transforms.Compose]): Optional transforms to apply to images
     """
     
     def __init__(
         self,
         image_dir: str,
-        attribute_file_path: str,
+        attribute_label_path: str,
         transform: Optional[transforms.Compose] = None
     ):
         self.image_dir = image_dir
@@ -40,10 +40,10 @@ class AttributeDataset(Dataset):
         
         # Read the attribute file
         # Skip the first line (number of images) and use the second line as headers
-        print(f"\nReading attribute file: {attribute_file_path}")
+        print(f"\nReading attribute file: {attribute_label_path}")
         
         # First read the headers
-        with open(attribute_file_path, 'r') as f:
+        with open(attribute_label_path, 'r') as f:
             # Skip first line (number of images)
             f.readline()
             # Get header line
@@ -53,7 +53,7 @@ class AttributeDataset(Dataset):
         
         # Now read the data, skipping the first two lines
         self.attributes_df = pd.read_csv(
-            attribute_file_path,
+            attribute_label_path,
             skiprows=2,  # Skip both the count line and header line
             sep='\s+',  # Use regex for whitespace
             header=None,  # No header since we already read it
@@ -98,7 +98,7 @@ class AttributeDataset(Dataset):
             print(f"Common IDs: {sample_attr_ids.intersection(sample_dir_ids)}")
             
             raise ValueError(
-                f"No matching images found between {image_dir} and {attribute_file_path}\n"
+                f"No matching images found between {image_dir} and {attribute_label_path}\n"
                 f"Found {len(existing_images)} images in directory\n"
                 f"First few images in directory: {list(existing_images)[:5]}\n"
                 f"First few images in attribute file: {list(self.attributes_df['image_id'])[:5] if len(self.attributes_df) > 0 else 'No images found'}"
@@ -162,7 +162,7 @@ if __name__ == "__main__":
         # Initialize the dataset
         dataset = AttributeDataset(
             image_dir="data/CelebA-HQ-split/test_300",
-            attribute_file_path="data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt"
+            attribute_label_path="data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt"
         )
         
         assert len(dataset) == 300, f"Expected length 300, got {len(dataset)}" 

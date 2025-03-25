@@ -1,12 +1,12 @@
 """Image generation utilities for diffusion models."""
 
 from pathlib import Path
-from typing import List
+from typing import List, Union
 import torch
 from PIL import Image
 from tqdm import tqdm
 import os
-from diffusers import DDPMPipeline
+from diffusers import DDPMPipeline, DiffusionPipeline
 
 from diffusion_models.config import TrainingConfig
 
@@ -145,6 +145,52 @@ def generate_grid_images(config: TrainingConfig, epoch: int, pipeline: DDPMPipel
 
     # Make a grid out of the images
     image_grid = make_grid(images, rows=4, cols=4)
+
+    # Save the images
+    test_dir = os.path.join(config.output_dir, "samples")
+    os.makedirs(test_dir, exist_ok=True)
+    image_grid.save(f"{test_dir}/{epoch:04d}.png")
+
+    return images, image_grid
+
+
+def generate_grid_images_attributes(
+    config: TrainingConfig,
+    epoch: int,
+    pipeline: DiffusionPipeline,
+    attributes: torch.Tensor
+) -> tuple:
+    """Generate and save a grid of sample images with attribute conditioning.
+    
+    Args:
+        config: Training configuration
+        epoch: Current epoch number
+        pipeline: Diffusion pipeline for conditional generation
+        attributes: Tensor of shape (num_samples, num_attributes) containing
+                   the attribute vectors to condition on
+        
+    Returns:
+        Tuple of (list of generated images, grid image)
+    """
+    # Generate sample images with attribute conditioning
+    generator = torch.manual_seed(config.seed)
+    output = pipeline(
+        batch_size=attributes.shape[0],  # Use number of attribute vectors
+        generator=generator,
+        num_inference_steps=config.num_train_timesteps,
+        class_labels=attributes,  # Pass attributes as class_labels
+        output_type="pil"
+    )
+    images = output.images
+
+    # Calculate grid dimensions based on number of samples
+    num_samples = len(images)
+    grid_size = int(num_samples ** 0.5)  # Square grid
+    rows = grid_size
+    cols = (num_samples + grid_size - 1) // grid_size  # Ceiling division
+
+    # Make a grid out of the images
+    image_grid = make_grid(images, rows=rows, cols=cols)
 
     # Save the images
     test_dir = os.path.join(config.output_dir, "samples")
