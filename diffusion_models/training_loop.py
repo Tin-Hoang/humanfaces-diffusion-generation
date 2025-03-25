@@ -12,21 +12,7 @@ import wandb
 
 from diffusion_models.utils.generation import generate_grid_images, generate_grid_images_attributes
 from diffusion_models.utils.metrics import generate_and_calculate_fid, generate_and_calculate_fid_attributes
-from diffusion_models.utils.attribute_utils import (
-    create_sample_attributes,
-    create_multi_hot_attributes
-)
-
-
-def get_full_repo_name(model_id: str, organization: str = None, token: str = None):
-    """Get the full repository name for Hugging Face Hub."""
-    if token is None:
-        token = HfFolder.get_token()
-    if organization is None:
-        username = whoami(token)["name"]
-        return f"{username}/{model_id}"
-    else:
-        return f"{organization}/{model_id}"
+from diffusion_models.utils.attribute_pipeline import AttributeDiffusionPipeline
 
 
 def train_loop(
@@ -85,7 +71,18 @@ def train_loop(
                 ),
                 exclude_fn=lambda path: ".venv" in path  # Exclude any files under .venv
             )
-    
+        pipeline = AttributeDiffusionPipeline(
+            unet=accelerator.unwrap_model(model),
+            vae=vae,
+            scheduler=noise_scheduler,
+            attribute_proj=attribute_embedder
+        )
+        # Move grid attributes to correct device
+        grid_attributes = grid_attributes.to(accelerator.device)
+        _, image_grid = generate_grid_images_attributes(
+            config, 11, pipeline, 
+            attributes=grid_attributes  # Pass raw attributes, not projected ones
+        )
     # Initialize best FID score tracking
     best_fid_score = float('inf')
     best_epoch = 0
@@ -178,29 +175,27 @@ def train_loop(
 
         # After each epoch you optionally sample some demo images and save the model
         if accelerator.is_main_process:
-            # For unconditional generation, use DDPMPipeline
-            pipeline = DDPMPipeline(
-                unet=accelerator.unwrap_model(model),
-                scheduler=noise_scheduler,
-            )
-
             if (epoch + 1) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:
                 # Generate and save sample images
                 if is_conditional:
+                    pipeline = AttributeDiffusionPipeline(
+                        unet=accelerator.unwrap_model(model),
+                        vae=vae,
+                        scheduler=noise_scheduler,
+                        attribute_proj=attribute_embedder
+                    )
                     # Move grid attributes to correct device
-                    if grid_attributes is not None:
-                        grid_attributes = grid_attributes.to(accelerator.device)
-                        # Project attributes for visualization
-                        if attribute_embedder is not None:
-                            grid_hidden_states = attribute_embedder(grid_attributes)
-                        _, image_grid = generate_grid_images_attributes(
-                            config, epoch, pipeline, 
-                            attributes=grid_hidden_states
-                        )
-                    else:
-                        # Fallback to unconditional if no attributes provided
-                        _, image_grid = generate_grid_images(config, epoch, pipeline)
+                    grid_attributes = grid_attributes.to(accelerator.device)
+                    _, image_grid = generate_grid_images_attributes(
+                        config, epoch, pipeline, 
+                        attributes=grid_attributes
+                    )
                 else:
+                    # For unconditional generation, use DDPMPipeline
+                    pipeline = DDPMPipeline(
+                        unet=accelerator.unwrap_model(model),
+                        scheduler=noise_scheduler,
+                    )
                     # For unconditional model
                     _, image_grid = generate_grid_images(config, epoch, pipeline)
 
@@ -218,9 +213,6 @@ def train_loop(
                     if is_conditional and val_attributes is not None:
                         # Move validation attributes to correct device
                         val_attributes = val_attributes.to(accelerator.device)
-                        # Project validation attributes
-                        if attribute_embedder is not None:
-                            val_hidden_states = attribute_embedder(val_attributes)
                         # Use attribute-specific FID calculation
                         fid_score = generate_and_calculate_fid_attributes(
                             pipeline=pipeline,
@@ -229,7 +221,7 @@ def train_loop(
                             preprocess=preprocess,
                             num_train_timesteps=config.num_train_timesteps,
                             num_samples=config.val_n_samples,
-                            attributes=val_hidden_states
+                            attributes=val_attributes
                         )
                     else:
                         # Use standard FID calculation for unconditional model

@@ -163,9 +163,14 @@ def main():
                 num_samples=config.val_n_samples,
                 num_attributes=config.num_attributes
             )
-    print("val_attributes shape: ", val_attributes.shape)
-    print("grid_attributes shape: ", grid_attributes.shape)
-    input("Press Enter to continue...")
+
+    # Move attributes to device
+    if val_attributes is not None:
+        val_attributes = val_attributes.to(config.device)
+        print("val_attributes shape: ", val_attributes.shape)
+    if grid_attributes is not None:
+        grid_attributes = grid_attributes.to(config.device)
+        print("grid_attributes shape: ", grid_attributes.shape)
     
     # Run training loop with attribute vectors and embedder
     train_loop(

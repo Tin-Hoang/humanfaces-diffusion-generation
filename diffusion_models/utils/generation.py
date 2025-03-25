@@ -7,6 +7,7 @@ from PIL import Image
 from tqdm import tqdm
 import os
 from diffusers import DDPMPipeline, DiffusionPipeline
+from diffusion_models.utils.attribute_pipeline import AttributeDiffusionPipeline
 
 from diffusion_models.config import TrainingConfig
 
@@ -157,7 +158,7 @@ def generate_grid_images(config: TrainingConfig, epoch: int, pipeline: DDPMPipel
 def generate_grid_images_attributes(
     config: TrainingConfig,
     epoch: int,
-    pipeline: DiffusionPipeline,
+    pipeline: AttributeDiffusionPipeline,
     attributes: torch.Tensor
 ) -> tuple:
     """Generate and save a grid of sample images with attribute conditioning.
@@ -165,20 +166,23 @@ def generate_grid_images_attributes(
     Args:
         config: Training configuration
         epoch: Current epoch number
-        pipeline: Diffusion pipeline for conditional generation
+        pipeline: Attribute diffusion pipeline for conditional generation
         attributes: Tensor of shape (num_samples, num_attributes) containing
                    the attribute vectors to condition on
         
     Returns:
         Tuple of (list of generated images, grid image)
     """
+    # Ensure attributes have correct shape (batch_size, 40)
+    if attributes.shape[1] != 40:
+        raise ValueError(f"Attributes tensor must have shape (batch_size, 40), got {attributes.shape}")
+    
     # Generate sample images with attribute conditioning
     generator = torch.manual_seed(config.seed)
     output = pipeline(
-        batch_size=attributes.shape[0],  # Use number of attribute vectors
-        generator=generator,
         num_inference_steps=config.num_train_timesteps,
-        class_labels=attributes,  # Pass attributes as class_labels
+        generator=generator,
+        attributes=attributes,  # Pass attributes directly
         output_type="pil"
     )
     images = output.images

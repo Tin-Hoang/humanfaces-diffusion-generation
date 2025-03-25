@@ -46,8 +46,8 @@
     --learning-rate 1e-4 \
     --weight-decay 1e-2 \
     --lr-warmup-steps 500 \
-    --save-image-epochs 5 \
-    --save-model-epochs 5 \
+    --save-image-epochs 1 \
+    --save-model-epochs 1 \
     --mixed-precision fp16 \
     --dataset-name "celeba_hq_128_2700train" \
     --train-dir "data/celeba_hq_split/train" \
