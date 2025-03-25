@@ -80,8 +80,7 @@ def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, Attribut
         
         # Memory optimizations
         use_linear_projection=True,  # Use linear projection for attention to save memory
-        attention_head_dim=8,  # Reduced attention head dimension
-        num_attention_heads=4,  # Reduced number of attention heads
+        attention_head_dim=16,  # This will result in 2 attention heads (32/16=2)
     )
     
     # Create the attribute embedder with reduced hidden size
