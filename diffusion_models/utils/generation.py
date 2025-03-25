@@ -173,10 +173,6 @@ def generate_grid_images_attributes(
     Returns:
         Tuple of (list of generated images, grid image)
     """
-    # Ensure attributes have correct shape (batch_size, 40)
-    if attributes.shape[1] != 40:
-        raise ValueError(f"Attributes tensor must have shape (batch_size, 40), got {attributes.shape}")
-    
     # Generate sample images with attribute conditioning
     generator = torch.manual_seed(config.seed)
     output = pipeline(

@@ -171,6 +171,8 @@ def main():
     if grid_attributes is not None:
         grid_attributes = grid_attributes.to(config.device)
         print("grid_attributes shape: ", grid_attributes.shape)
+        # sample first item
+        print("grid_attributes first item: ", grid_attributes[0])
     
     # Run training loop with attribute vectors and embedder
     train_loop(

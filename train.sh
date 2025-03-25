@@ -51,7 +51,6 @@
     --mixed-precision fp16 \
     --dataset-name "celeba_hq_128_2700train" \
     --train-dir "data/celeba_hq_split/train" \
-    --val-dir "data/celeba_hq_split/test" \
     --is-conditional True \
     --num-attributes 40 \
     --attribute-file "data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt" \

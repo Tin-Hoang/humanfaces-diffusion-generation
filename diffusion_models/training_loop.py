@@ -71,18 +71,7 @@ def train_loop(
                 ),
                 exclude_fn=lambda path: ".venv" in path  # Exclude any files under .venv
             )
-        pipeline = AttributeDiffusionPipeline(
-            unet=accelerator.unwrap_model(model),
-            vae=vae,
-            scheduler=noise_scheduler,
-            attribute_proj=attribute_embedder
-        )
-        # Move grid attributes to correct device
-        grid_attributes = grid_attributes.to(accelerator.device)
-        _, image_grid = generate_grid_images_attributes(
-            config, 11, pipeline, 
-            attributes=grid_attributes  # Pass raw attributes, not projected ones
-        )
+
     # Initialize best FID score tracking
     best_fid_score = float('inf')
     best_epoch = 0
