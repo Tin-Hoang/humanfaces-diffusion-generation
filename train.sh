@@ -54,8 +54,7 @@
     --is-conditional True \
     --num-attributes 40 \
     --attribute-file "data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt" \
-    --val-n-samples 100 \
-    --num-train-timesteps 1000 \
+    --num-train-timesteps 10 \
     --overwrite-output-dir \
     --seed 42 \
     --use-wandb False \

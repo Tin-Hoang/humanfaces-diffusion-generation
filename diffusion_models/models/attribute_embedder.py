@@ -3,18 +3,17 @@
 import torch
 from torch import nn
 from diffusers.models.modeling_utils import ModelMixin
-from diffusers.models.attention_processor import AttnProcessor
+from diffusers.configuration_utils import ConfigMixin, register_to_config
 
 
-class AttributeEmbedder(ModelMixin, nn.Module):
+class AttributeEmbedder(ModelMixin, ConfigMixin):
     """
     Embedder for attribute vectors that projects multi-hot attribute tensors
     to a dimension suitable for cross-attention conditioning.
     
     This class is compatible with diffusers' serialization system.
     """
-    config_name = "attribute_embedder_config"
-    
+    @register_to_config
     def __init__(self, input_dim: int = 40, hidden_dim: int = 512):
         """
         Initialize the attribute embedder.
@@ -27,12 +26,6 @@ class AttributeEmbedder(ModelMixin, nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.proj = nn.Linear(input_dim, hidden_dim)
-        # Set default attention processor
-        self.set_default_attn_processor()
-    
-    def set_default_attn_processor(self):
-        """Sets the default attention processor."""
-        self.processor = AttnProcessor()
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
