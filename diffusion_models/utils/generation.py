@@ -173,15 +173,20 @@ def generate_grid_images_attributes(
     Returns:
         Tuple of (list of generated images, grid image)
     """
+    print(f"\nGenerating images for epoch {epoch}")
+    print(f"Number of samples: {len(attributes)}")
+    print(f"Attributes shape: {attributes.shape}")
+    
     # Generate sample images with attribute conditioning
     generator = torch.Generator(device=pipeline.unet.device).manual_seed(config.seed)
     output = pipeline(
         num_inference_steps=config.num_train_timesteps,
         generator=generator,
         attributes=attributes,  # Pass attributes directly
-        output_type="pil"
+        output_type="pil",
+        decode_batch_size=1  # Process one image at a time for VAE decoding to save memory
     )
-    images = output.images
+    images = output["sample"]
 
     # Calculate grid dimensions based on number of samples
     num_samples = len(images)

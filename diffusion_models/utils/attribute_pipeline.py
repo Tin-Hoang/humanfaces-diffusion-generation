@@ -37,7 +37,8 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         num_inference_steps: int = 50,
         generator: Optional[torch.Generator] = None,
         output_type: str = "pil",  # "pil" or "tensor"
-        return_dict: bool = True
+        return_dict: bool = True,
+        decode_batch_size: int = 1  # Process VAE decoding in smaller batches
     ) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
         """
         Generate images conditioned on multi-hot attribute vectors.
@@ -48,6 +49,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             generator (torch.Generator, optional): Random number generator for reproducibility.
             output_type (str): "pil" for PIL images, "tensor" for raw tensors.
             return_dict (bool): Whether to return a dict with the output.
+            decode_batch_size (int): Batch size for VAE decoding to manage memory.
         
         Returns:
             Dict or Tensor: Generated images in the specified format.
@@ -92,26 +94,45 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
                 pbar.update(1)
                 if t % 100 == 0:  # Check every 100 steps
                     print(f"Step {t}, Memory: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
-
-        # Decode latents to images
-        print("Decoding latents to images...")
+        
+        # Decode latents to images in smaller batches to save memory
+        print("Decoding latents to images in batches...")
         latents = latents / self.vae.config.scaling_factor
-        print(f"Before VAE decode: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
-        images = self.vae.decode(latents).sample  # (batch_size, 3, 128, 128)
-        print(f"After VAE decode: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
-        images = (images / 2 + 0.5).clamp(0, 1)  # Rescale from [-1, 1] to [0, 1]
-
-        # Convert to desired output type
-        if output_type == "pil":
-            from PIL import Image
-            import numpy as np
-            images_pil = []
-            for img in images:
-                img_np = img.cpu().float().numpy().transpose(1, 2, 0) * 255
-                images_pil.append(Image.fromarray(img_np.astype(np.uint8)))
-            images = images_pil
+        
+        # Process in smaller batches
+        all_images = []
+        for i in tqdm(range(0, batch_size, decode_batch_size), desc="VAE decoding"):
+            # Get batch slice
+            batch_latents = latents[i:i+decode_batch_size]
+            
+            # Free memory before decoding
+            torch.cuda.empty_cache()
+            print(f"Batch {i//decode_batch_size+1}/{-(-batch_size//decode_batch_size)}, Memory before decode: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
+            
+            # Decode batch
+            batch_images = self.vae.decode(batch_latents).sample
+            batch_images = (batch_images / 2 + 0.5).clamp(0, 1)  # Rescale from [-1, 1] to [0, 1]
+            
+            # Convert to CPU immediately to free GPU memory
+            if output_type == "pil":
+                from PIL import Image
+                import numpy as np
+                for img in batch_images:
+                    img_np = img.cpu().float().numpy().transpose(1, 2, 0) * 255
+                    all_images.append(Image.fromarray(img_np.astype(np.uint8)))
+            else:
+                all_images.append(batch_images.cpu())
+            
+            # Free decoded tensors
+            del batch_images, batch_latents
+            torch.cuda.empty_cache()
+            print(f"Batch {i//decode_batch_size+1} done, Memory after: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
+        
+        # Combine results if not PIL images
+        if output_type != "pil":
+            all_images = torch.cat(all_images, dim=0)
 
         # Return results
         if return_dict:
-            return {"sample": images}
-        return images
+            return {"sample": all_images}
+        return all_images
