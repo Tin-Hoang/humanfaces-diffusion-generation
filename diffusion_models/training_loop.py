@@ -13,7 +13,6 @@ import wandb
 from diffusion_models.utils.generation import generate_grid_images, generate_grid_images_attributes
 from diffusion_models.utils.metrics import generate_and_calculate_fid, generate_and_calculate_fid_attributes
 from diffusion_models.utils.attribute_pipeline import AttributeDiffusionPipeline
-from diffusion_models.models.attribute_embedder import AttributeEmbedder
 
 
 def train_loop(
@@ -119,7 +118,7 @@ def train_loop(
             if vae is not None:
                 # For conditional model - encode images to latent space
                 with torch.no_grad():
-                    latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 64, 64)
+                    latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 32, 32)
                     latents = latents * vae.config.scaling_factor
                 latents = latents.to(clean_images.device)
                 noise = torch.randn_like(latents).to(latents.device)

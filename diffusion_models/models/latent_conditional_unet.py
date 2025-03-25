@@ -49,7 +49,7 @@ def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, Attribut
         # Architecture parameters
         block_out_channels=(128, 256, 512, 512),  # Channel dimensions per block
         layers_per_block=2,                       # Two ResNet layers per block for better capacity
-        cross_attention_dim=512,                  # Dimension of cross-attention features
+        cross_attention_dim=256,                  # Dimension of cross-attention features
         attention_head_dim=8,                     # Size of attention heads
         
         # Model configuration
@@ -67,7 +67,7 @@ def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, Attribut
     # Create attribute embedder to project attribute vectors to conditioning dimension
     attribute_embedder = AttributeEmbedder(
         input_dim=config.num_attributes,              # 40 binary attributes
-        hidden_dim=512                                # Match cross_attention_dim
+        hidden_dim=256                                # Match cross_attention_dim
     )
     
     if hasattr(config, "device"):
