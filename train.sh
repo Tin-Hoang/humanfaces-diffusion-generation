@@ -37,7 +37,7 @@
 
    python scripts/train.py \
     --model latent_conditional_unet \
-    --run-name "attribute_latentconditionalunet2d_128_ddpm_2700train" \
+    --run-name "attribute_latentconditionalunet2d_128_ddim_27000train" \
     --image-size 128 \
     --train-batch-size 16 \
     --eval-batch-size 16 \
@@ -49,11 +49,13 @@
     --save-image-epochs 1 \
     --save-model-epochs 1 \
     --mixed-precision fp16 \
-    --dataset-name "celeba_hq_128_2700train" \
-    --train-dir "data/celeba_hq_split/train" \
+    --scheduler-type ddim \
+    --dataset-name "celebamask_hq_128_27000train" \
+    --train-dir "data/CelebA-HQ-split/train_27000" \
     --is-conditional True \
     --num-attributes 40 \
     --attribute-file "data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt" \
+    --grid-attribute-indices 20 \
     --num-train-timesteps 10 \
     --overwrite-output-dir \
     --seed 42 \

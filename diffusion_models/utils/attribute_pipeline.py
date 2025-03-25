@@ -1,5 +1,5 @@
 import torch
-from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDPMScheduler
+from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDIMScheduler
 from typing import Optional, Dict, Union
 from PIL import Image
 import numpy as np
@@ -12,18 +12,19 @@ from diffusion_models.models.attribute_embedder import AttributeEmbedder
 class AttributeDiffusionPipeline(DiffusionPipeline):
     """
     A custom diffusion pipeline for generating 128x128 RGB images conditioned on 40 binary attributes.
+    Uses DDIM scheduler for faster and higher quality sampling.
     
     Args:
         unet (UNet2DConditionModel): The trained UNet for denoising.
         vae (AutoencoderKL): The pretrained VAE for encoding/decoding latents.
-        scheduler (DDPMScheduler): The noise scheduler for diffusion steps.
+        scheduler (DDIMScheduler): The DDIM scheduler for diffusion steps.
         attribute_embedder (AttributeEmbedder): Projection layer for multi-hot attribute vectors.
     """
     def __init__(
         self,
         unet: UNet2DConditionModel,
         vae: AutoencoderKL,
-        scheduler: DDPMScheduler,
+        scheduler: DDIMScheduler,
         attribute_embedder: AttributeEmbedder
     ):
         super().__init__()
@@ -43,10 +44,11 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         generator: Optional[torch.Generator] = None,
         output_type: str = "pil",  # "pil" or "tensor"
         return_dict: bool = True,
-        decode_batch_size: int = 2  # Process VAE decoding in smaller batches
+        decode_batch_size: int = 2,  # Process VAE decoding in smaller batches
+        eta: float = 0.0,  # Parameter between 0 and 1, controlling the amount of noise to add (0 = deterministic)
     ) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
         """
-        Generate images conditioned on multi-hot attribute vectors.
+        Generate images conditioned on multi-hot attribute vectors using DDIM sampling.
         
         Args:
             attributes (torch.Tensor): Multi-hot tensor of shape (batch_size, 40).
@@ -55,6 +57,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             output_type (str): "pil" for PIL images, "tensor" for raw tensors.
             return_dict (bool): Whether to return a dict with the output.
             decode_batch_size (int): Batch size for VAE decoding to manage memory.
+            eta (float): Parameter between 0 and 1, controlling stochasticity (0 = deterministic DDIM).
         
         Returns:
             Dict or Tensor: Generated images in the specified format.
@@ -78,22 +81,36 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             generator=generator
         )
 
-        # Project attributes to conditioning input
-        cond = self.attribute_embedder(attributes)  # (batch_size, 1, 512)
-
-        # Set timesteps for denoising
+        # Set timesteps for DDIM sampling
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         
-        # Print info and setup progress bar
-        print(f"\nGenerating {batch_size} images | Attributes shape: {attributes.shape}")
+        # Scale the initial noise (important for DDIM)
+        latents = latents * self.scheduler.init_noise_sigma
+
+        # Project attributes to conditioning input
+        cond = self.attribute_embedder(attributes)  # (batch_size, 1, 512)
         
-        # Denoising loop with progress bar
-        with tqdm(total=len(self.scheduler.timesteps), desc="Denoising") as pbar:
+        # Print info and setup progress bar
+        print(f"\nGenerating {batch_size} images with DDIM sampling | Attributes shape: {attributes.shape}")
+        print(f"Using {num_inference_steps} inference steps, eta={eta}")
+        print(f"Attribute values: {attributes[0].cpu().numpy()}")  # Print first sample's attributes
+        
+        # DDIM sampling loop with progress bar
+        with tqdm(total=len(self.scheduler.timesteps), desc="DDIM Sampling") as pbar:
             for t in self.scheduler.timesteps:
-                # Predict noise
+                # Predict noise residual
                 noise_pred = self.unet(latents, t, encoder_hidden_states=cond).sample
-                # Update latents
-                latents = self.scheduler.step(noise_pred, t, latents).prev_sample
+                
+                # DDIM step with specified eta
+                latents = self.scheduler.step(
+                    model_output=noise_pred,
+                    timestep=t,
+                    sample=latents,
+                    eta=eta,
+                    use_clipped_model_output=False,
+                    generator=generator,
+                ).prev_sample
+                
                 del noise_pred
                 pbar.update(1)
 

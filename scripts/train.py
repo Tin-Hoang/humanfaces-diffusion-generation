@@ -8,7 +8,8 @@ from diffusers import AutoencoderKL
 from diffusion_models.config import parse_args
 from diffusion_models.datasets.dataloader import setup_dataloader, create_attribute_dataloader
 from diffusion_models.training_loop import train_loop
-from diffusion_models.noise_schedulers.ddpm_scheduler import create_noise_scheduler
+from diffusion_models.noise_schedulers.ddim_scheduler import create_ddim_scheduler
+from diffusion_models.noise_schedulers.ddpm_scheduler import create_ddpm_scheduler
 from diffusers.optimization import get_cosine_schedule_with_warmup
 from diffusion_models.utils.attribute_utils import (
     create_sample_attributes,
@@ -116,9 +117,19 @@ def main():
     else:
         print("\nNo validation directory provided, skipping validation setup")
     
-    noise_scheduler = create_noise_scheduler(
-        num_train_timesteps=config.num_train_timesteps
-    )
+    # Create noise scheduler based on config
+    if config.scheduler_type == "ddim":
+        noise_scheduler = create_ddim_scheduler(
+            num_train_timesteps=config.num_train_timesteps
+        )
+        print("\nUsing DDIM scheduler for training")
+    elif config.scheduler_type == "ddpm":
+        noise_scheduler = create_ddpm_scheduler(
+            num_train_timesteps=config.num_train_timesteps
+        )
+        print("\nUsing DDPM scheduler for training")
+    else:
+        raise ValueError(f"Invalid scheduler type: {config.scheduler_type}")
 
     # Setup optimizer and learning rate scheduler
     if config.is_conditional and attribute_embedder is not None:

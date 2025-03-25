@@ -46,6 +46,7 @@ class TrainingConfig:
     val_dir: str = None  # Add validation directory
     val_n_samples: int = 100  # Number of samples to generate for FID calculation
     num_train_timesteps: int = 1000  # num_train_timesteps for DDPM scheduler and pipeline inference
+    scheduler_type: str = "ddpm"  # "ddpm" or "ddim"
 
     # Conditional generation parameters
     sample_attributes: Optional[torch.Tensor] = None  # Attribute vectors for sample generation
@@ -104,8 +105,8 @@ class TrainingConfig:
             if not self.attribute_file or not os.path.exists(self.attribute_file):
                 raise FileNotFoundError(f"Attribute file not found: {self.attribute_file}")
             if self.grid_attribute_indices is None:
-                print("No grid_attribute_indices provided, using default: [17, 20, 24, 35, 39] for Gray_Hair, Male, No_Beard, Wearing_Hat, and Young")
-                self.grid_attribute_indices = [17, 20, 24, 35, 39]
+                print("No grid_attribute_indices provided, using default: [20] for Male attribute")
+                self.grid_attribute_indices = [20]  # Just use Male attribute for clearer results
 
 
 def parse_args() -> TrainingConfig:
@@ -181,6 +182,10 @@ def parse_args() -> TrainingConfig:
                       help="Name of the WandB project")
     parser.add_argument("--wandb-entity", type=str, default=defaults["wandb_entity"],
                       help="Name of the WandB entity")
+    
+    # Add scheduler type argument
+    parser.add_argument("--scheduler-type", type=str, choices=["ddpm", "ddim"], default=defaults["scheduler_type"],
+                      help="Scheduler type")
     
     # Parse arguments
     args = parser.parse_args()
