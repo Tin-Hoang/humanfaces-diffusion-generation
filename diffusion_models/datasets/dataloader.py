@@ -8,7 +8,7 @@ import torch
 import os
 
 from diffusion_models.datasets.data_utils import get_preprocess_transform, transform
-from diffusion_models.datasets.attribute_data_loader import AttributeDataset
+from diffusion_models.datasets.attribute_dataset import AttributeDataset
 
 
 def setup_dataloader(
