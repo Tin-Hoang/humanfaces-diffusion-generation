@@ -1,13 +1,8 @@
 import torch
 from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDPMScheduler
-from torch import nn
-from typing import Optional, Dict, Union, Callable
+from typing import Optional, Dict, Union
 from PIL import Image
 import numpy as np
-from diffusers.utils import is_transformers_available
-from diffusers.models.modeling_utils import ModelMixin
-from diffusers.models.attention_processor import AttnProcessor
-from diffusers.configuration_utils import register_to_config
 from tqdm import tqdm
 
 # Import AttributeEmbedder from models
@@ -22,21 +17,21 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         unet (UNet2DConditionModel): The trained UNet for denoising.
         vae (AutoencoderKL): The pretrained VAE for encoding/decoding latents.
         scheduler (DDPMScheduler): The noise scheduler for diffusion steps.
-        attribute_proj (AttributeEmbedder): Projection layer for multi-hot attribute vectors.
+        attribute_embedder (AttributeEmbedder): Projection layer for multi-hot attribute vectors.
     """
     def __init__(
         self,
         unet: UNet2DConditionModel,
         vae: AutoencoderKL,
         scheduler: DDPMScheduler,
-        attribute_proj: AttributeEmbedder
+        attribute_embedder: AttributeEmbedder
     ):
         super().__init__()
         self.register_modules(
             unet=unet,
             vae=vae,
             scheduler=scheduler,
-            attribute_proj=attribute_proj
+            attribute_embedder=attribute_embedder
         )
         self.vae_scale_factor = 2 ** (len(self.unet.config.block_out_channels) - 1)  # 8 for 4 blocks
 
@@ -84,7 +79,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         )
 
         # Project attributes to conditioning input
-        cond = self.attribute_proj(attributes)  # (batch_size, 1, 512)
+        cond = self.attribute_embedder(attributes)  # (batch_size, 1, 512)
 
         # Set timesteps for denoising
         self.scheduler.set_timesteps(num_inference_steps, device=device)

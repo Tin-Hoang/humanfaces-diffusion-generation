@@ -175,7 +175,7 @@ def train_loop(
                             unet=accelerator.unwrap_model(model),
                             vae=vae,
                             scheduler=noise_scheduler,
-                            attribute_proj=attribute_embedder
+                            attribute_embedder=attribute_embedder
                         )
                     else:
                         # Conditional pipeline with direct pixel-space
