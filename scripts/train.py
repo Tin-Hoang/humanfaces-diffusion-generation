@@ -78,7 +78,8 @@ def main():
             attribute_label_path=config.attribute_file,
             batch_size=config.train_batch_size,
             num_workers=config.num_workers,
-            shuffle=True
+            shuffle=True,
+            image_size=config.image_size
         )
         # Get preprocessing from regular dataloader setup
         _, preprocess = setup_dataloader(
@@ -105,7 +106,8 @@ def main():
                 attribute_label_path=config.attribute_file,
                 batch_size=config.eval_batch_size,
                 num_workers=config.num_workers,
-                shuffle=False
+                shuffle=False,
+                image_size=config.image_size
             )
         else:
             val_dataloader, _ = setup_dataloader(

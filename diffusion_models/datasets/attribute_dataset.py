@@ -17,6 +17,7 @@ class AttributeDataset(Dataset):
     Args:
         image_dir (str): Directory containing the image files
         attribute_label_path (str): Path to the attribute label file
+        image_size (int): Size to resize images to (both height and width)
         transform (Optional[transforms.Compose]): Optional transforms to apply to images
     """
     
@@ -24,11 +25,12 @@ class AttributeDataset(Dataset):
         self,
         image_dir: str,
         attribute_label_path: str,
+        image_size: int = 256,
         transform: Optional[transforms.Compose] = None
     ):
         self.image_dir = image_dir
         self.transform = transform or transforms.Compose([
-            transforms.Resize((256, 256)),
+            transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.LANCZOS),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])

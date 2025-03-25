@@ -95,50 +95,39 @@ def setup_dataloader(
 def create_attribute_dataloader(
     image_dir: str,
     attribute_label_path: str,
-    batch_size: int = 32,
+    batch_size: int = 16,
     num_workers: int = 4,
     shuffle: bool = True,
-    pin_memory: bool = True,
-    drop_last: bool = False,
-    indices: Optional[torch.Tensor] = None
+    image_size: int = 256,
 ) -> DataLoader:
-    """Create a DataLoader for a specific split of the AttributeDataset.
+    """Create a DataLoader for the attribute dataset.
     
     Args:
         image_dir (str): Directory containing the image files
         attribute_label_path (str): Path to the attribute label file
-        batch_size (int): Batch size for the DataLoader
+        batch_size (int): Batch size for the dataloader
         num_workers (int): Number of worker processes for data loading
         shuffle (bool): Whether to shuffle the data
-        pin_memory (bool): Whether to pin memory for faster data transfer to GPU
-        drop_last (bool): Whether to drop the last incomplete batch
-        indices (Optional[torch.Tensor]): Specific indices to use for this split.
-            If None, the full dataset will be used.
+        image_size (int): Size to resize images to (both height and width)
         
     Returns:
-        DataLoader: The created DataLoader for the specified split
+        DataLoader: DataLoader for the attribute dataset
     """
     # Create the dataset
     dataset = AttributeDataset(
         image_dir=image_dir,
-        attribute_label_path=attribute_label_path
+        attribute_label_path=attribute_label_path,
+        image_size=image_size
     )
     
-    # If indices are provided, create a subset
-    if indices is not None:
-        dataset = torch.utils.data.Subset(dataset, indices)
-    
-    # Create DataLoader with appropriate settings
-    dataloader = DataLoader(
+    # Create and return the dataloader
+    return DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
         num_workers=num_workers,
-        pin_memory=pin_memory,
-        drop_last=drop_last
+        pin_memory=True
     )
-    
-    return dataloader
 
 
 if __name__ == "__main__":

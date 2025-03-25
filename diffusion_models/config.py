@@ -29,7 +29,7 @@ class TrainingConfig:
     
     # Training configuration
     run_name: Optional[str] = None  # Name for the run. To be used for WandB run name and output directory name
-    image_size: int = 128  # the generated image resolution
+    image_size: int = 256  # the generated image resolution
     train_batch_size: int = 16
     eval_batch_size: int = 16  # how many images to sample during evaluation
     num_epochs: int = 100

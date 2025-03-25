@@ -26,42 +26,42 @@ def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, Attribut
     # Create the UNet model for latent diffusion
     model = UNet2DConditionModel(
         # Latent space parameters
-        sample_size=config.image_size,  # Input/output spatial size
+        sample_size=32,  # 32x32 latents (256/8 due to VAE downsampling)
         in_channels=4,    # VAE latent space channels
         out_channels=4,   # Noise prediction in latent space
         
         # Downsampling blocks with selective attention
         down_block_types=(
-            "CrossAttnDownBlock2D",    # 128x128 -> 64x64 with cross-attention
-            "CrossAttnDownBlock2D",     # 64x64 -> 32x32 with cross-attention
-            "DownBlock2D",              # 32x32 -> 16x16 standard downsampling
-            "DownBlock2D",              # 16x16 -> 8x8 standard downsampling
+            "CrossAttnDownBlock2D",    # 32x32 -> 16x16 with cross-attention
+            "CrossAttnDownBlock2D",    # 16x16 -> 8x8 with cross-attention
+            "DownBlock2D",             # 8x8 -> 4x4 standard downsampling
+            "DownBlock2D",             # 4x4 -> 2x2 standard downsampling
         ),
         
         # Upsampling blocks with symmetric attention
         up_block_types=(
-            "UpBlock2D",               # 8x8 -> 16x16 standard upsampling
-            "UpBlock2D",               # 16x16 -> 32x32 standard upsampling
-            "CrossAttnUpBlock2D",      # 32x32 -> 64x64 with cross-attention
-            "CrossAttnUpBlock2D",      # 64x64 -> 128x128 with cross-attention
+            "UpBlock2D",               # 2x2 -> 4x4 standard upsampling
+            "UpBlock2D",               # 4x4 -> 8x8 standard upsampling
+            "CrossAttnUpBlock2D",      # 8x8 -> 16x16 with cross-attention
+            "CrossAttnUpBlock2D",      # 16x16 -> 32x32 with cross-attention
         ),
         
         # Architecture parameters
-        block_out_channels=(64, 128, 256, 256),  # Channel dimensions per block
-        layers_per_block=1,                      # Single ResNet layer per block
-        cross_attention_dim=512,                 # Dimension of cross-attention features
-        attention_head_dim=8,                    # Size of attention heads
+        block_out_channels=(128, 256, 512, 512),  # Channel dimensions per block
+        layers_per_block=2,                       # Two ResNet layers per block for better capacity
+        cross_attention_dim=512,                  # Dimension of cross-attention features
+        attention_head_dim=8,                     # Size of attention heads
         
         # Model configuration
-        use_linear_projection=True,              # Memory-efficient attention
-        num_class_embeds=None,                   # No class conditioning
-        only_cross_attention=False,              # Enable both self and cross attention
+        use_linear_projection=True,               # Memory-efficient attention
+        num_class_embeds=None,                    # No class conditioning
+        only_cross_attention=False,               # Enable both self and cross attention
         
         # Architecture details
-        act_fn="silu",                          # SiLU activation function
-        norm_num_groups=32,                      # Group normalization
-        norm_eps=1e-5,                          # Numerical stability
-        cross_attention_norm="layer_norm",       # Cross-attention normalization
+        act_fn="silu",                           # SiLU activation function
+        norm_num_groups=32,                       # Group normalization
+        norm_eps=1e-5,                           # Numerical stability
+        cross_attention_norm="layer_norm",        # Cross-attention normalization
     )
     
     # Create attribute embedder to project attribute vectors to conditioning dimension

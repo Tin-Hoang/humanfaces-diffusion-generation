@@ -11,7 +11,7 @@ from diffusion_models.models.attribute_embedder import AttributeEmbedder
 
 class AttributeDiffusionPipeline(DiffusionPipeline):
     """
-    A custom diffusion pipeline for generating 128x128 RGB images conditioned on 40 binary attributes.
+    A custom diffusion pipeline for generating images conditioned on 40 binary attributes.
     Uses DDIM scheduler for faster and higher quality sampling.
     
     Args:
@@ -19,13 +19,15 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         vae (AutoencoderKL): The pretrained VAE for encoding/decoding latents.
         scheduler (DDIMScheduler): The DDIM scheduler for diffusion steps.
         attribute_embedder (AttributeEmbedder): Projection layer for multi-hot attribute vectors.
+        image_size (int, optional): Output image size (both height and width). Defaults to 256.
     """
     def __init__(
         self,
         unet: UNet2DConditionModel,
         vae: AutoencoderKL,
         scheduler: DDIMScheduler,
-        attribute_embedder: AttributeEmbedder
+        attribute_embedder: AttributeEmbedder,
+        image_size: int = 256
     ):
         super().__init__()
         self.register_modules(
@@ -35,7 +37,17 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             attribute_embedder=attribute_embedder
         )
         self.vae_scale_factor = 2 ** (len(self.unet.config.block_out_channels) - 1)  # 8 for 4 blocks
-
+        self.image_size = image_size
+        
+        # Verify that UNet's sample size matches VAE-scaled image size
+        expected_sample_size = image_size // self.vae_scale_factor
+        if self.unet.config.sample_size != expected_sample_size:
+            raise ValueError(
+                f"UNet sample_size ({self.unet.config.sample_size}) does not match "
+                f"expected size for {image_size}x{image_size} images ({expected_sample_size}). "
+                f"The UNet's sample_size should be image_size/8 due to VAE downsampling."
+            )
+    
     @torch.no_grad()
     def __call__(
         self,
@@ -72,8 +84,8 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         dtype = self.unet.dtype
         attributes = attributes.to(device, dtype)
 
-        # Sample initial noise in latent space (64x64 due to VAE downscaling)
-        latent_size = self.unet.config.sample_size  # 64
+        # Sample initial noise in latent space
+        latent_size = self.unet.config.sample_size  # Should be image_size/8
         latents = torch.randn(
             (batch_size, self.unet.config.in_channels, latent_size, latent_size),
             device=device,
@@ -83,6 +95,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
 
         # Set timesteps for DDIM sampling
         self.scheduler.set_timesteps(num_inference_steps, device=device)
+        timesteps = self.scheduler.timesteps
         
         # Scale the initial noise (important for DDIM)
         latents = latents * self.scheduler.init_noise_sigma
@@ -91,31 +104,38 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         cond = self.attribute_embedder(attributes)  # (batch_size, 1, 512)
         
         # Print info and setup progress bar
-        print(f"\nGenerating {batch_size} images with DDIM sampling | Attributes shape: {attributes.shape}")
+        print(f"\nGenerating {batch_size} {self.image_size}x{self.image_size} images with DDIM sampling")
         print(f"Using {num_inference_steps} inference steps, eta={eta}")
         print(f"Attribute values: {attributes[0].cpu().numpy()}")  # Print first sample's attributes
         
         # DDIM sampling loop with progress bar
-        with tqdm(total=len(self.scheduler.timesteps), desc="DDIM Sampling") as pbar:
-            for t in self.scheduler.timesteps:
+        with tqdm(total=len(timesteps), desc="DDIM Sampling") as pbar:
+            for t in timesteps:
+                # Ensure timestep is on the correct device
+                t = t.to(device)
+                
                 # Predict noise residual
                 noise_pred = self.unet(latents, t, encoder_hidden_states=cond).sample
                 
                 # DDIM step with specified eta
-                latents = self.scheduler.step(
+                step_output = self.scheduler.step(
                     model_output=noise_pred,
                     timestep=t,
                     sample=latents,
                     eta=eta,
                     use_clipped_model_output=False,
                     generator=generator,
-                ).prev_sample
+                )
+                latents = step_output.prev_sample
                 
-                del noise_pred
+                # Free memory
+                del noise_pred, step_output
+                torch.cuda.empty_cache()
                 pbar.update(1)
 
         # Decode latents to images in smaller batches to save memory
         latents = latents / self.vae.config.scaling_factor
+        target_size = (self.image_size, self.image_size)
         
         # Process in smaller batches
         all_images = []
@@ -134,8 +154,21 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             if output_type == "pil":
                 for img in batch_images:
                     img_np = img.cpu().float().numpy().transpose(1, 2, 0) * 255
-                    all_images.append(Image.fromarray(img_np.astype(np.uint8)))
+                    # Convert to PIL and resize if needed
+                    pil_image = Image.fromarray(img_np.astype(np.uint8))
+                    if pil_image.size != target_size:
+                        pil_image = pil_image.resize(target_size, Image.Resampling.LANCZOS)
+                    all_images.append(pil_image)
             else:
+                # For tensor output, use torch interpolate if needed
+                if batch_images.shape[-2:] != target_size:
+                    batch_images = torch.nn.functional.interpolate(
+                        batch_images,
+                        size=target_size,
+                        mode='bicubic',
+                        align_corners=False
+                    )
+                    batch_images = batch_images.clamp(0, 1)  # Re-clamp after interpolation
                 all_images.append(batch_images.cpu())
             
             # Free decoded tensors
