@@ -39,6 +39,7 @@ class TrainingConfig:
     lr_warmup_steps: int = 500
     save_image_epochs: int = 5
     save_model_epochs: int = 5
+    num_workers: int = 4
     mixed_precision: str = "fp16"  # `no` for float32, `fp16` for automatic mixed precision
     output_dir: Optional[str] = None  # Will be set in parse_args
     dataset_name: str = "celeba_hq_128_2700train"  # Customize the dataset name to note the dataset used
