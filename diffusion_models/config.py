@@ -65,14 +65,6 @@ class TrainingConfig:
     wandb_project: Optional[str] = "EEEM068_Diffusion_Models"
     wandb_entity: Optional[str] = "tin-hoang"
 
-    # Training parameters
-    batch_size: int = 128
-    num_workers: int = 4
-    
-    # Model parameters
-    channels: int = 3
-    time_steps: int = 1000
-    
     def __post_init__(self):
         """Set default output_dir if not provided."""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

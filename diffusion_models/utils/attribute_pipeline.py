@@ -1,5 +1,5 @@
 import torch
-from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDIMScheduler
+from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDIMScheduler, DDPMScheduler
 from typing import Optional, Dict, Union
 from PIL import Image
 import numpy as np
@@ -12,12 +12,12 @@ from diffusion_models.models.attribute_embedder import AttributeEmbedder
 class AttributeDiffusionPipeline(DiffusionPipeline):
     """
     A custom diffusion pipeline for generating images conditioned on 40 binary attributes.
-    Uses DDIM scheduler for faster and higher quality sampling.
+    Supports both DDPM and DDIM schedulers for sampling.
     
     Args:
         unet (UNet2DConditionModel): The trained UNet for denoising.
         vae (AutoencoderKL): The pretrained VAE for encoding/decoding latents.
-        scheduler (DDIMScheduler): The DDIM scheduler for diffusion steps.
+        scheduler (Union[DDIMScheduler, DDPMScheduler]): The scheduler for diffusion steps.
         attribute_embedder (AttributeEmbedder): Projection layer for multi-hot attribute vectors.
         image_size (int, optional): Output image size (both height and width). Defaults to 256.
     """
@@ -25,7 +25,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         self,
         unet: UNet2DConditionModel,
         vae: AutoencoderKL,
-        scheduler: DDIMScheduler,
+        scheduler: Union[DDIMScheduler, DDPMScheduler],
         attribute_embedder: AttributeEmbedder,
         image_size: int = 256
     ):
@@ -60,7 +60,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         eta: float = 0.0,  # Parameter between 0 and 1, controlling the amount of noise to add (0 = deterministic)
     ) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
         """
-        Generate images conditioned on multi-hot attribute vectors using DDIM sampling.
+        Generate images conditioned on multi-hot attribute vectors using DDPM or DDIM sampling.
         
         Args:
             attributes (torch.Tensor): Multi-hot tensor of shape (batch_size, 40).
@@ -70,6 +70,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             return_dict (bool): Whether to return a dict with the output.
             decode_batch_size (int): Batch size for VAE decoding to manage memory.
             eta (float): Parameter between 0 and 1, controlling stochasticity (0 = deterministic DDIM).
+                       Only used with DDIM scheduler.
         
         Returns:
             Dict or Tensor: Generated images in the specified format.
@@ -93,23 +94,26 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             generator=generator
         )
 
-        # Set timesteps for DDIM sampling
+        # Set timesteps for sampling
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
         
-        # Scale the initial noise (important for DDIM)
+        # Scale the initial noise
         latents = latents * self.scheduler.init_noise_sigma
 
         # Project attributes to conditioning input
-        cond = self.attribute_embedder(attributes)  # (batch_size, 1, 512)
+        cond = self.attribute_embedder(attributes)  # (batch_size, 1, 256)
         
         # Print info and setup progress bar
-        print(f"\nGenerating {batch_size} {self.image_size}x{self.image_size} images with DDIM sampling")
-        print(f"Using {num_inference_steps} inference steps, eta={eta}")
+        scheduler_name = "DDIM" if isinstance(self.scheduler, DDIMScheduler) else "DDPM"
+        print(f"\nGenerating {batch_size} {self.image_size}x{self.image_size} images with {scheduler_name} sampling")
+        print(f"Using {num_inference_steps} inference steps")
+        if isinstance(self.scheduler, DDIMScheduler):
+            print(f"eta={eta} (stochasticity parameter)")
         print(f"Attribute values: {attributes[0].cpu().numpy()}")  # Print first sample's attributes
         
-        # DDIM sampling loop with progress bar
-        with tqdm(total=len(timesteps), desc="DDIM Sampling") as pbar:
+        # Sampling loop with progress bar
+        with tqdm(total=len(timesteps), desc=f"{scheduler_name} Sampling") as pbar:
             for t in timesteps:
                 # Ensure timestep is on the correct device
                 t = t.to(device)
@@ -117,15 +121,23 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
                 # Predict noise residual
                 noise_pred = self.unet(latents, t, encoder_hidden_states=cond).sample
                 
-                # DDIM step with specified eta
-                step_output = self.scheduler.step(
-                    model_output=noise_pred,
-                    timestep=t,
-                    sample=latents,
-                    eta=eta,
-                    use_clipped_model_output=False,
-                    generator=generator,
-                )
+                # Step with appropriate scheduler
+                if isinstance(self.scheduler, DDIMScheduler):
+                    step_output = self.scheduler.step(
+                        model_output=noise_pred,
+                        timestep=t,
+                        sample=latents,
+                        eta=eta,
+                        use_clipped_model_output=False,
+                        generator=generator,
+                    )
+                else:  # DDPM
+                    step_output = self.scheduler.step(
+                        model_output=noise_pred,
+                        timestep=t,
+                        sample=latents,
+                        generator=generator,
+                    )
                 latents = step_output.prev_sample
                 
                 # Free memory
