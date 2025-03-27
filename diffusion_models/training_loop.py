@@ -24,7 +24,7 @@ def get_full_repo_name(model_id: str, organization: str = None, token: str = Non
     else:
         return f"{organization}/{model_id}"
 
-def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, val_dataloader, preprocess):
+def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, val_dataloader, preprocess,ema=None):
     """Main training loop."""
     # Initialize accelerator and tensorboard logging
     accelerator = Accelerator(
@@ -91,6 +91,8 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
 
                 accelerator.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
+                if ema:
+                    ema.update(model)
                 lr_scheduler.step()
                 optimizer.zero_grad()
 
