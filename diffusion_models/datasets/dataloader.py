@@ -1,10 +1,9 @@
 """Dataset loading utilities for diffusion models."""
 
 from datasets import load_dataset
-from torch.utils.data import DataLoader, random_split
-from typing import Tuple, Optional, Union
+from torch.utils.data import DataLoader
+from typing import Tuple
 from torchvision import transforms
-import torch
 import os
 
 from diffusion_models.datasets.data_utils import get_preprocess_transform, transform
@@ -49,7 +48,6 @@ def setup_dataloader(
         dataset = load_dataset("imagefolder", data_dir=data_source, split=split)
         print(f"Loaded local dataset from: {data_source}")
         print(f"Number of images in the dataset: {len(dataset)}")
-        print(f"Dataset columns: {dataset.column_names}")
         
         # For imagefolder datasets, the image column is named 'image'
         image_column = 'image'
@@ -59,7 +57,6 @@ def setup_dataloader(
             dataset = load_dataset(data_source, split=split)
             print(f"Loaded Hugging Face dataset: {data_source}")
             print(f"Number of images in the dataset: {len(dataset)}")
-            print(f"Dataset columns: {dataset.column_names}")
             
             # Try to find the image column
             possible_image_columns = ['image', 'img', 'images', 'pixel_values']
@@ -113,11 +110,14 @@ def create_attribute_dataloader(
     Returns:
         DataLoader: DataLoader for the attribute dataset
     """
+    preprocess = get_preprocess_transform(image_size)
+
     # Create the dataset
     dataset = AttributeDataset(
         image_dir=image_dir,
         attribute_label_path=attribute_label_path,
-        image_size=image_size
+        image_size=image_size,
+        transform=preprocess
     )
     
     # Create and return the dataloader

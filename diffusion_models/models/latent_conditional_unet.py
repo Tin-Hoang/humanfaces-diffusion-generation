@@ -6,12 +6,9 @@ from diffusers import UNet2DConditionModel
 
 from diffusion_models.config import TrainingConfig
 
-# Import the AttributeEmbedder from the attribute_embedder module
-from diffusion_models.models.attribute_embedder import AttributeEmbedder
 
-
-def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, AttributeEmbedder]:
-    """Create and return the Conditional UNet2D model and attribute embedder.
+def create_model(config: TrainingConfig) -> UNet2DConditionModel:
+    """Create and return the Conditional UNet2D model.
     
     This model is designed for latent diffusion, operating in the VAE latent space
     and conditioned on attribute vectors. The architecture is memory-efficient while
@@ -64,17 +61,9 @@ def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, Attribut
         cross_attention_norm="layer_norm",        # Cross-attention normalization
     )
     
-    # Create attribute embedder to project attribute vectors to conditioning dimension
-    attribute_embedder = AttributeEmbedder(
-        input_dim=config.num_attributes,              # 40 binary attributes
-        hidden_dim=256                                # Match cross_attention_dim
-    )
-    
     if hasattr(config, "device"):
         model = model.to(config.device)
-        attribute_embedder = attribute_embedder.to(config.device)
         
     print(f"\nCreated UNet2DConditionModel with {sum(p.numel() for p in model.parameters()):,} parameters")
-    print(f"Created AttributeEmbedder: {attribute_embedder}")
     
-    return model, attribute_embedder 
+    return model 

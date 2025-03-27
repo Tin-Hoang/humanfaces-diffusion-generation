@@ -1,32 +1,12 @@
 """Conditional UNet model for attribute-based image generation."""
 
-import torch
-import torch.nn as nn
 from diffusers import UNet2DConditionModel
 
 from diffusion_models.config import TrainingConfig
 
 
-class AttributeEmbedder(nn.Module):
-    """Projects attribute vectors to the dimension expected by UNet2DConditionModel."""
-    
-    def __init__(self, num_attributes: int, hidden_size: int):
-        super().__init__()
-        self.projection = nn.Sequential(
-            nn.Linear(num_attributes, hidden_size),
-            nn.GELU(),
-            nn.Linear(hidden_size, hidden_size)
-        )
-        
-    def forward(self, x):
-        # Input shape: (batch_size, num_attributes)
-        # Output shape: (batch_size, 1, hidden_size) for cross-attention
-        x = self.projection(x)  # (batch_size, hidden_size)
-        return x.unsqueeze(1)  # Add sequence dimension for cross-attention
-
-
-def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, AttributeEmbedder]:
-    """Create and return the Conditional UNet2D model and attribute embedder.
+def create_model(config: TrainingConfig) -> UNet2DConditionModel:
+    """Create and return the Conditional UNet2D model.
     
     This model is designed for image generation conditioned on attribute vectors.
     The architecture includes cross-attention layers to incorporate the attribute
@@ -79,10 +59,4 @@ def create_model(config: TrainingConfig) -> tuple[UNet2DConditionModel, Attribut
         cross_attention_norm="layer_norm",  # Normalization for cross-attention
     )
     
-    # Create the attribute embedder
-    attribute_embedder = AttributeEmbedder(
-        num_attributes=config.num_attributes,
-        hidden_size=64  # Match cross_attention_dim for compatibility
-    )
-    
-    return model, attribute_embedder 
+    return model 

@@ -33,26 +33,39 @@ def main():
     print("=" * 80)
     
     # Create model and noise scheduler
+    model, attribute_embedder, vae = None, None, None
     if config.model == "unet_notebook":
         from diffusion_models.models.unet_notebook import create_model
         model = create_model(config)
-        attribute_embedder = None
     elif config.model == "dit":
         from diffusion_models.models.dit import create_model
         model = create_model(config)
-        attribute_embedder = None
     elif config.model == "conditional_unet":
         from diffusion_models.models.conditional_unet import create_model
-        model, attribute_embedder = create_model(config)
+        from diffusion_models.models.attribute_embedder import AttributeEmbedder
+        model = create_model(config)
+        attribute_embedder = AttributeEmbedder(
+            input_dim=config.num_attributes,              # 40 binary attributes
+            hidden_dim=256                                # Match cross_attention_dim
+        )
     elif config.model == "latent_conditional_unet":
         from diffusion_models.models.latent_conditional_unet import create_model
-        model, attribute_embedder = create_model(config)
+        from diffusion_models.models.attribute_embedder import AttributeEmbedder
+        # Create model
+        model = create_model(config)
+        # Load VAE
         vae = AutoencoderKL.from_pretrained(
                 "stable-diffusion-v1-5/stable-diffusion-v1-5", 
                 subfolder="vae", 
                 torch_dtype=torch.float32
             )
         vae = vae.to(config.device)
+            
+        # Create attribute embedder to project attribute vectors to conditioning dimension
+        attribute_embedder = AttributeEmbedder(
+            input_dim=config.num_attributes,              # 40 binary attributes
+            hidden_dim=256                                # Match cross_attention_dim
+        )
     elif config.model == "unet_2":
         raise NotImplementedError("Unet 2 is not implemented yet")
     elif config.model == "unet_3":
