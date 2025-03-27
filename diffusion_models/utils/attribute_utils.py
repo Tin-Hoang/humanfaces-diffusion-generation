@@ -100,7 +100,8 @@ def create_sample_attributes_from_indices(
 def create_multi_hot_attributes(
     attribute_indices: List[int],
     num_attributes: int = 40,
-    num_samples: int = 1
+    num_samples: int = 1,
+    random_remaining_indices: bool = False
 ) -> torch.Tensor:
     """Create multi-hot attribute vectors with specific indices set to 1.
     
@@ -113,7 +114,9 @@ def create_multi_hot_attributes(
         attribute_indices: List of attribute indices to set to 1
         num_attributes: Total number of attributes in the dataset
         num_samples: Number of copies of the multi-hot vector to generate
-        
+        random_remaining_indices: If True, randomly set remaining indices (not in attribute_indices) 
+            to 1 to create more diverse samples
+
     Returns:
         Tensor of shape (num_samples, num_attributes) with values 0 or 1,
         where specified indices are set to 1 and others to 0
@@ -123,5 +126,10 @@ def create_multi_hot_attributes(
     
     # Set specified indices to 1
     samples[:, attribute_indices] = 1
-    
-    return samples 
+
+    if random_remaining_indices:
+        # Randomly set remaining indices to 1
+        remaining_indices = torch.randint(0, num_attributes, (num_samples, num_attributes - len(attribute_indices)))
+        samples[:, remaining_indices] = 1
+
+    return samples

@@ -174,13 +174,14 @@ def main():
             grid_attributes = create_multi_hot_attributes(
                 attribute_indices=config.grid_attribute_indices,
                 num_attributes=config.num_attributes,
-                num_samples=config.num_grid_samples
+                num_samples=config.grid_num_samples,
+                random_remaining_indices=config.grid_sample_random_remaining_indices
             )
         else:
             # If no specific indices provided, use random combinations
             grid_attributes = create_sample_attributes(
-                num_samples=config.num_grid_samples,
-                num_attributes=config.num_attributes
+                num_samples=config.grid_num_samples,
+                num_attributes=config.num_attributes,
             )
         
         # Create validation attributes

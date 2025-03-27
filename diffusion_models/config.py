@@ -57,8 +57,8 @@ class TrainingConfig:
 
     # Grid visualization parameters
     grid_attribute_indices: Optional[List[int]] = None  # Specific attributes for grid visualization
-    num_grid_samples: int = 16  # Number of samples in the visualization grid
-    grid_sample_attributes: Optional[torch.Tensor] = None  # Attribute vectors for grid visualization
+    grid_num_samples: int = 16  # Number of samples in the visualization grid
+    grid_sample_random_remaining_indices: bool = False  # Whether to randomly sample remaining indices for grid visualization
 
     overwrite_output_dir: bool = True  # overwrite the old model when re-running the notebook
     seed: int = 42
@@ -159,9 +159,11 @@ def parse_args() -> TrainingConfig:
     # Add grid visualization parameters
     parser.add_argument("--grid-attribute-indices", type=int, nargs="+", default=defaults["grid_attribute_indices"],
                       help="List of attribute indices for grid visualization (e.g., --grid-attribute-indices 0 5 10)")
-    parser.add_argument("--num-grid-samples", type=int, default=defaults["num_grid_samples"],
+    parser.add_argument("--grid-num-samples", type=int, default=defaults["grid_num_samples"],
                       help="Number of samples in the visualization grid")
-
+    parser.add_argument("--grid-sample-random-remaining-indices", type=str2bool, default=defaults["grid_sample_random_remaining_indices"],
+                      help="Whether to randomly sample remaining indices for grid visualization")
+    
     parser.add_argument("--overwrite-output-dir", action="store_true",
                       help="Overwrite output directory if it exists")
     parser.add_argument("--seed", type=int, default=defaults["seed"],
