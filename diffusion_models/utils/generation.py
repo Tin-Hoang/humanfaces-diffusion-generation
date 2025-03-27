@@ -7,7 +7,7 @@ from PIL import Image
 from tqdm import tqdm
 import os
 from diffusers import DDPMPipeline, DiffusionPipeline
-from diffusion_models.utils.attribute_pipeline import AttributeDiffusionPipeline
+from diffusion_models.pipelines.attribute_pipeline import AttributeDiffusionPipeline
 
 from diffusion_models.config import TrainingConfig
 

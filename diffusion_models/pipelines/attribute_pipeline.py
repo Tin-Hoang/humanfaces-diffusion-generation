@@ -5,7 +5,6 @@ from PIL import Image
 import numpy as np
 from tqdm import tqdm
 
-# Import AttributeEmbedder from models
 from diffusion_models.models.attribute_embedder import AttributeEmbedder
 
 

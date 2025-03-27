@@ -12,7 +12,7 @@ import wandb
 
 from diffusion_models.utils.generation import generate_grid_images, generate_grid_images_attributes
 from diffusion_models.utils.metrics import generate_and_calculate_fid, generate_and_calculate_fid_attributes
-from diffusion_models.utils.attribute_pipeline import AttributeDiffusionPipeline
+from diffusion_models.pipelines.attribute_pipeline import AttributeDiffusionPipeline
 
 
 def train_loop(
