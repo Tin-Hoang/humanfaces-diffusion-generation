@@ -28,6 +28,8 @@ python scripts/train.py \
     --num-attributes 40 \
     --attribute-file "data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt" \
     --grid-attribute-indices 20 \
+    --grid-num-samples 16 \
+    --grid-sample-random-remaining-indices True \
     --num-train-timesteps 1000 \
     --overwrite-output-dir \
     --seed 42 \

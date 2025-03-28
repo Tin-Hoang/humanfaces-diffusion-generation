@@ -94,13 +94,8 @@ def main():
             shuffle=True,
             image_size=config.image_size
         )
-        # Get preprocessing from regular dataloader setup
-        _, preprocess = setup_dataloader(
-            data_source=config.train_dir,
-            batch_size=config.train_batch_size,
-            image_size=config.image_size,
-            shuffle=True
-        )
+        # Get preprocessing from attribute dataloader
+        preprocess = train_dataloader.dataset.transform
     else:
         # Use regular dataloader for unconditional training
         train_dataloader, preprocess = setup_dataloader(
