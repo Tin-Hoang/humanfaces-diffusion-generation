@@ -51,6 +51,8 @@ class TrainingConfig:
     use_wandb: bool = True  # Whether to use WandB logging
     wandb_project: Optional[str] = "EEEM068_Diffusion_Models"
     wandb_entity: Optional[str] = "tin-hoang"
+    use_ema: bool = True
+    use_scale_shift_norm: bool = True
 
     def __post_init__(self):
         """Set default output_dir if not provided."""
@@ -137,6 +139,12 @@ def parse_args() -> TrainingConfig:
                       help="Name of the WandB project")
     parser.add_argument("--wandb-entity", type=str, default=defaults["wandb_entity"],
                       help="Name of the WandB entity")
+    parser.add_argument("--use-ema", type=bool, default=False, 
+    		      help="Enable EMA tracking of model weights")
+    parser.add_argument("--use-scale-shift-norm", type=bool, default=False, 
+                      help="Use scale-shift normalization")
+
+
     
     # Parse arguments
     args = parser.parse_args()
