@@ -1,14 +1,16 @@
 """Model creation and setup for diffusion models."""
 
-from diffusers import UNet2DModel  #  fallback-safe import
+from diffusers import UNet2DModel
 from diffusion_models.config import TrainingConfig
+import inspect
+
 
 def create_model(config: TrainingConfig) -> UNet2DModel:
+    """Create and return the UNet2D model based on the given training configuration."""
     kwargs = {}
 
-    # Only add these if they are supported
+    # Conditionally pass optional arguments if supported by the current diffusers version
     try:
-        import inspect
         unet_args = inspect.signature(UNet2DModel.__init__).parameters
         if "use_scale_shift_norm" in unet_args:
             kwargs["use_scale_shift_norm"] = config.use_scale_shift_norm
@@ -22,24 +24,28 @@ def create_model(config: TrainingConfig) -> UNet2DModel:
         print(f"[WARNING] Could not inspect UNet2DModel args: {e}")
 
     model = UNet2DModel(
-        sample_size=config.image_size,
-        in_channels=3,
-        out_channels=3,
-        layers_per_block=2,
-        block_out_channels=(128, 256, 384, 512),
+        sample_size=config.image_size,  # Target image resolution (e.g., 128 or 256)
+        in_channels=3,                  # RGB image channels
+        out_channels=3,                 # Output image channels
+        layers_per_block=2,            # Number of ResNet layers per block
+        block_out_channels=(128, 128, 256, 256, 512, 512),  # Channels per block
         down_block_types=(
             "DownBlock2D",
-            "AttnDownBlock2D",
-            "AttnDownBlock2D",
-            "AttnDownBlock2D",
+            "DownBlock2D",
+            "DownBlock2D",
+            "DownBlock2D",
+            "AttnDownBlock2D",  # Spatial attention
+            "DownBlock2D",
         ),
         up_block_types=(
-            "AttnUpBlock2D",
-            "AttnUpBlock2D",
+            "UpBlock2D",
             "AttnUpBlock2D",
             "UpBlock2D",
+            "UpBlock2D",
+            "UpBlock2D",
+            "UpBlock2D",
         ),
-        **kwargs  # inject supported ADM-style options
+        **kwargs  # Inject optional advanced arguments if supported
     )
     return model
 

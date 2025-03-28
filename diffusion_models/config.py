@@ -139,9 +139,9 @@ def parse_args() -> TrainingConfig:
                       help="Name of the WandB project")
     parser.add_argument("--wandb-entity", type=str, default=defaults["wandb_entity"],
                       help="Name of the WandB entity")
-    parser.add_argument("--use-ema", type=bool, default=True, 
+    parser.add_argument("--use-ema", type=bool, default=False, 
     		      help="Enable EMA tracking of model weights")
-    parser.add_argument("--use-scale-shift-norm", type=bool, default=True, 
+    parser.add_argument("--use-scale-shift-norm", type=bool, default=False, 
                       help="Use scale-shift normalization")
 
 

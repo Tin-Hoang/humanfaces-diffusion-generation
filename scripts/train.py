@@ -6,7 +6,7 @@ from diffusion_models.config import parse_args
 from diffusion_models.datasets.dataloader import setup_dataloader
 from diffusion_models.training_loop import train_loop
 from diffusion_models.noise_schedulers.ddpm_scheduler import create_noise_scheduler
-from diffusion_models.utils.ema import EMA
+from ema_pytorch import EMA
 
 from diffusers.optimization import get_cosine_schedule_with_warmup
 
@@ -22,13 +22,22 @@ def main():
     if config.model == "unet_notebook":
         from diffusion_models.models.unet_notebook import create_model
         model = create_model(config)
+    elif config.model == "unet_notebook_r1":
+        from diffusion_models.models.unet_notebook_r1 import create_model
+        model = create_model(config)
+    elif config.model == "unet_notebook_r2":
+        from diffusion_models.models.unet_notebook_r2 import create_model
+        model = create_model(config)
     elif config.model == "unet_notebook_r4":
         from diffusion_models.models.unet_notebook_r4 import create_model
+        model = create_model(config)
+    elif config.model == "unet_notebook_r5":
+        from diffusion_models.models.unet_notebook_r5 import create_model
         model = create_model(config)
     else:
         raise ValueError(f"Invalid model type: {config.model}")
 
-    ema = EMA(model, decay=0.9999) if config.use_ema else None
+    ema = EMA(model, beta=0.9999, update_after_step=0, update_every=1) if config.use_ema else None
 
     if config.use_wandb:
         wandb.finish()
@@ -70,9 +79,6 @@ def main():
         num_warmup_steps=config.lr_warmup_steps,
         num_training_steps=(len(train_dataloader) * config.num_epochs)
     )
-
-    if ema:
-        ema.apply_shadow(model)
 
     train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, val_dataloader, preprocess, ema)
 
