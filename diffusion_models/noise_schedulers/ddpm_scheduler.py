@@ -3,7 +3,7 @@
 from diffusers import DDPMScheduler
 
 
-def create_noise_scheduler(
+def create_ddpm_scheduler(
     num_train_timesteps: int = 1000,
     beta_start: float = 0.0001,
     beta_end: float = 0.02,

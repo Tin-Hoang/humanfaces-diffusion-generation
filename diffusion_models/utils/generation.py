@@ -1,12 +1,13 @@
 """Image generation utilities for diffusion models."""
 
 from pathlib import Path
-from typing import List
+from typing import List, Union
 import torch
 from PIL import Image
 from tqdm import tqdm
 import os
-from diffusers import DDPMPipeline
+from diffusers import DDPMPipeline, DiffusionPipeline
+from diffusion_models.pipelines.attribute_pipeline import AttributeDiffusionPipeline
 
 from diffusion_models.config import TrainingConfig
 
@@ -145,6 +146,56 @@ def generate_grid_images(config: TrainingConfig, epoch: int, pipeline: DDPMPipel
 
     # Make a grid out of the images
     image_grid = make_grid(images, rows=4, cols=4)
+
+    # Save the images
+    test_dir = os.path.join(config.output_dir, "samples")
+    os.makedirs(test_dir, exist_ok=True)
+    image_grid.save(f"{test_dir}/{epoch:04d}.png")
+
+    return images, image_grid
+
+
+def generate_grid_images_attributes(
+    config: TrainingConfig,
+    epoch: int,
+    pipeline: AttributeDiffusionPipeline,
+    attributes: torch.Tensor
+) -> tuple:
+    """Generate and save a grid of sample images with attribute conditioning.
+    
+    Args:
+        config: Training configuration
+        epoch: Current epoch number
+        pipeline: Attribute diffusion pipeline for conditional generation
+        attributes: Tensor of shape (num_samples, num_attributes) containing
+                   the attribute vectors to condition on
+        
+    Returns:
+        Tuple of (list of generated images, grid image)
+    """
+    print(f"\nGenerating images for epoch {epoch}")
+    print(f"Number of samples: {len(attributes)}")
+    print(f"Attributes shape: {attributes.shape}")
+    
+    # Generate sample images with attribute conditioning
+    generator = torch.Generator(device=pipeline.unet.device).manual_seed(config.seed)
+    output = pipeline(
+        num_inference_steps=config.num_train_timesteps,
+        generator=generator,
+        attributes=attributes,  # Pass attributes directly
+        output_type="pil",
+        decode_batch_size=2  # Process 2 image at a time for VAE decoding to save memory
+    )
+    images = output["sample"]
+
+    # Calculate grid dimensions based on number of samples
+    num_samples = len(images)
+    grid_size = int(num_samples ** 0.5)  # Square grid
+    rows = grid_size
+    cols = (num_samples + grid_size - 1) // grid_size  # Ceiling division
+
+    # Make a grid out of the images
+    image_grid = make_grid(images, rows=rows, cols=cols)
 
     # Save the images
     test_dir = os.path.join(config.output_dir, "samples")
