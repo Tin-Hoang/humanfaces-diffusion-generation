@@ -45,6 +45,9 @@ def main():
     elif config.model == "unet_notebook_r2":
         from diffusion_models.models.unet_notebook_r2 import create_model
         model = create_model(config)
+    elif config.model == "unet_notebook_r3":
+        from diffusion_models.models.unet_notebook_r3 import create_model
+        model = create_model(config)
     elif config.model == "unet_notebook_r4":
         from diffusion_models.models.unet_notebook_r4 import create_model
         model = create_model(config)
