@@ -10,17 +10,21 @@ This repository contains an implementation of diffusion models for image generat
 </p>
 
 ### Table of Contents
-1. [Installation](#2-installation)
-   - [Setup with UV](#21-setup-with-uv)
-2. [Project Structure](#3-project-structure)
-3. [Usage](#4-usage)
-   - [Training](#41-training-use-script)
-   - [Training with Accelerate](#42-training-with-accelerate-distributed-training)
-   - [Image Generation](#43-image-generation)
-     - [Gradio UI](#431-generation-using-the-gradio-ui)
-     - [Command Line](#432-generation-using-the-command-line-script)
-   - [Using the Notebook](#44-using-the-notebook)
-4. [License](#5-license)
+
+1. [Project Overview](#1-project-overview)
+2. [Installation](#2-installation)
+   - [2.1 Setup with UV](#21-setup-with-uv)
+3. [Project Structure](#3-project-structure)
+4. [Usage](#4-usage)
+   - [4.1 Training](#41-training)
+     - [4.1.1 Training (use script)](#411-training-use-script)
+     - [4.1.2 Training with Accelerate (distributed training)](#412-training-with-accelerate-distributed-training)
+   - [4.2 Image Generation](#42-image-generation)
+     - [4.2.1 Generation using the Gradio UI](#421-generation-using-the-gradio-ui)
+     - [4.2.2 Generation using the command line script](#422-generation-using-the-command-line-script)
+   - [4.3 Using the Notebook](#43-using-the-notebook)
+5. [License](#5-license)
+6. [Contributors](#6-contributors)
 
 ## 2. Installation
 
@@ -72,7 +76,9 @@ EEEM068-Diffusion-Models/
 
 ## 4. Usage
 
-### 4.1 Training (use script)
+### 4.1 Training
+
+#### 4.1.1 Training (use script)
 
 To train a model, use the `train.py` script:
 
@@ -100,7 +106,7 @@ python scripts/train.py \
 ```
 
 Key arguments:
-- `--model`: Type of model to use (e.g., "unet_notebook")
+- `--model`: Type of model to use (e.g., "unet_notebook", "latent_conditional_unet")
 - `--run-name`: Name for the run (used for WandB run name and output directory)
 - `--image-size`: Target image resolution
 - `--train-batch-size`: Training batch size
@@ -119,6 +125,13 @@ Key arguments:
 - `--use-wandb`: Whether to use WandB logging
 - `--wandb-project`: Name of the WandB project
 - `--wandb-entity`: Name of the WandB entity
+- **Conditional diffusion parameters**
+  - `--is-conditional`: Whether to use conditional generation
+  - `--attribute-file`: Path to the attribute labels file
+  - `--num-attributes`: Number of attributes in the dataset
+  - `--grid-attribute-indices`: List of attribute indices for grid visualization. Check the [All Attributes for **CelebAMask-HQ** Dataset](#all-attributes-for-celebamask-hq-dataset) for the index of each attribute.
+  - `--grid-num-samples`: Number of samples in the visualization grid
+  - `--grid-sample-random-remaining-indices`: Whether to randomly sample remaining indices for grid visualization
 
 The training script will:
 1. Save regular checkpoints every `save_model_epochs` epochs
@@ -128,7 +141,60 @@ The training script will:
 
 The best model will be saved in `{output_dir}/best_model/` while regular checkpoints will be saved in `{output_dir}/`.
 
-### 4.2 Training with Accelerate (distributed training)
+<details>
+<summary>All Attributes for **CelebAMask-HQ** Dataset</summary>
+
+Link to the dataset: [CelebAMask-HQ](https://github.com/switchablenorms/CelebAMask-HQ)
+
+<p align="center">
+
+| Attribute Index | Attribute Name |
+|-----------------|----------------|
+| 0 | 5_o_Clock_Shadow |
+| 1 | Arched_Eyebrows |
+| 2 | Attractive |
+| 3 | Bags_Under_Eyes |
+| 4 | Bald |
+| 5 | Bangs |
+| 6 | Big_Lips |
+| 7 | Big_Nose |
+| 8 | Black_Hair |
+| 9 | Blond_Hair |
+| 10 | Blurry |
+| 11 | Brown_Hair |
+| 12 | Bushy_Eyebrows |
+| 13 | Chubby |
+| 14 | Double_Chin |
+| 15 | Eyeglasses |
+| 16 | Goatee |
+| 17 | Gray_Hair |
+| 18 | Heavy_Makeup |
+| 19 | High_Cheekbones |
+| 20 | Male |
+| 21 | Mouth_Slightly_Open |
+| 22 | Mustache |
+| 23 | Narrow_Eyes |
+| 24 | No_Beard |
+| 25 | Oval_Face |
+| 26 | Pale_Skin |
+| 27 | Pointy_Nose |
+| 28 | Receding_Hairline |
+| 29 | Rosy_Cheeks |
+| 30 | Sideburns |
+| 31 | Smiling |
+| 32 | Straight_Hair |
+| 33 | Wavy_Hair |
+| 34 | Wearing_Earrings |
+| 35 | Wearing_Hat |
+| 36 | Wearing_Lipstick |
+| 37 | Wearing_Necklace |
+| 38 | Wearing_Necktie |
+| 39 | Young |
+
+</p>
+</details>
+
+#### 4.1.2 Training with Accelerate (distributed training)
 
 The training script uses the Hugging Face 🤗 Accelerate library for distributed training. Follow these steps to train a model:
 
@@ -156,11 +222,11 @@ accelerate launch scripts/train.py \
     --seed 42
 ```
 
-### 4.3 Image Generation
+### 4.2 Image Generation
 
 You can generate images in two ways:
 
-#### 4.3.1 Generation using the Gradio UI:
+#### 4.2.1 Generation using the Gradio UI:
 ```bash
 python ui/app.py
 
@@ -172,7 +238,7 @@ The UI provides two tabs:
 - Single Image Generation: Generate one image at a time with custom noise input
 - Batch Generation: Generate multiple images with specified parameters
 
-#### 4.3.2 Generation using the command line script:
+#### 4.2.2 Generation using the command line script:
 
 Input arguments:
 - `--checkpoint`: Path to the model checkpoint directory
@@ -206,7 +272,7 @@ python scripts/generate.py \
     --seed 42
 ```
 
-### 4.4 Using the Notebook
+### 4.3 Using the Notebook
 
 Alternatively, you can use the provided Jupyter notebooks for a more interactive experience:
 
@@ -222,7 +288,9 @@ Then navigate to `notebooks/` directory and open the relevant notebook.
 This project is part of the EEEM068 Diffusion Models coursework at the University of Surrey.
 We publish this code under the MIT license for educational purposes.
 
-### Group 5 - Project members:
+## 6. Contributors
+
+Group 5 - Project members:
 - [Enggen Sherpa​](https://github.com/enggen)
 - [Dhruvraj Singh Rawat​](https://github.com/dhruvraj-singh-rawat)
 - [Rishikesan Kirupanantha​](https://github.com/rishikesan19)
