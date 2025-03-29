@@ -83,6 +83,12 @@ class TrainingConfig:
         # Set output_dir if not provided
         if not self.root_output_dir:
             self.root_output_dir = "checkpoints"
+        
+        # If the root_output_dir is on scratch, make the directory and set the permissions
+        if self.root_output_dir.startswith("/scratch/group_5"):
+            # Change mode of root_output_dir to 700
+            os.makedirs("/scratch/group_5", exist_ok=True)
+            os.chmod("/scratch/group_5", 0o700)
 
         if not self.output_dir:
             self.output_dir = os.path.join(self.root_output_dir, self.run_name)
