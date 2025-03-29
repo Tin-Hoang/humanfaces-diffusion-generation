@@ -1,0 +1,33 @@
+model: unet_notebook_r3
+run_name: unet_notebook_r5_0.0001
+
+image_size: 128
+train_batch_size: 8
+eval_batch_size: 16
+num_epochs: 300
+learning_rate: 1e-4
+weight_decay: 1e-2
+lr_warmup_steps: 500
+gradient_accumulation_steps: 1
+
+save_image_epochs: 5
+save_model_epochs: 5
+mixed_precision: fp16
+
+train_dir: data/celeba_hq_split/train
+val_dir: data/celeba_hq_split/test
+val_n_samples: 100
+dataset_name: celebA_128
+num_workers: 4
+
+num_train_timesteps: 1000
+scheduler_type: ddpm
+
+use_wandb: true
+wandb_project: EEEM068_Diffusion_Models
+wandb_entity: tin-hoang
+
+use_ema: true
+use_scale_shift_norm: true
+is_conditional: false
+

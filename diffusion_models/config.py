@@ -6,6 +6,7 @@ from datetime import datetime
 import argparse
 from typing import Optional, List
 import torch
+from omegaconf import OmegaConf, DictConfig
 
 
 def str2bool(v):
@@ -112,92 +113,73 @@ class TrainingConfig:
 
 
 def parse_args() -> TrainingConfig:
-    """Parse command line arguments and return a TrainingConfig instance."""
+    """Support CLI, YAML, and override-style configs with full compatibility."""
     parser = argparse.ArgumentParser(description="Train a diffusion model")
-    
-    # Get default values from TrainingConfig
-    defaults = asdict(TrainingConfig())
+
+    # Special args for YAML and overrides
+    parser.add_argument("--config", type=str, help="Path to YAML config file")
+    parser.add_argument("--override", nargs=argparse.REMAINDER, help="Overrides in key=value format")
+
+    # === Manually defined CLI args (exactly as you had) ===
+    defaults = {field: TrainingConfig.__dataclass_fields__[field].default
+            for field in TrainingConfig.__dataclass_fields__}
+
     defaults["output_dir"] = None
     defaults["run_name"] = None
 
-    # Add arguments for each config field
-    parser.add_argument("--model", type=str, default=defaults["model"],
-                      help="Model to use")
-    parser.add_argument("--run-name", type=str, default=defaults["run_name"],
-                      help="Name for the run. To be used for WandB run name and output directory name")
-    parser.add_argument("--image-size", type=int, default=defaults["image_size"],
-                      help="The generated image resolution")
-    parser.add_argument("--train-batch-size", type=int, default=defaults["train_batch_size"],
-                      help="Training batch size")
-    parser.add_argument("--eval-batch-size", type=int, default=defaults["eval_batch_size"],
-                      help="Evaluation batch size")
-    parser.add_argument("--num-epochs", type=int, default=defaults["num_epochs"],
-                      help="Number of training epochs")
-    parser.add_argument("--gradient-accumulation-steps", type=int, default=defaults["gradient_accumulation_steps"],
-                      help="Number of gradient accumulation steps")
-    parser.add_argument("--learning-rate", type=float, default=defaults["learning_rate"],
-                      help="Learning rate")
-    parser.add_argument("--weight-decay", type=float, default=defaults["weight_decay"],
-                      help="Weight decay for optimizer")
-    parser.add_argument("--lr-warmup-steps", type=int, default=defaults["lr_warmup_steps"],
-                      help="Number of learning rate warmup steps")
-    parser.add_argument("--seed", type=int, default=defaults["seed"],
-                      help="Random seed")
-    parser.add_argument("--save-image-epochs", type=int, default=defaults["save_image_epochs"],
-                      help="Save generated images every N epochs")
-    parser.add_argument("--save-model-epochs", type=int, default=defaults["save_model_epochs"],
-                      help="Save model checkpoint every N epochs")
-    parser.add_argument("--mixed-precision", type=str, default=defaults["mixed_precision"],
-                      choices=["no", "fp16"], help="Mixed precision training type")
-    parser.add_argument("--output-dir", type=str, default=defaults["output_dir"],
-                      help="Output directory for model and samples")
-    parser.add_argument("--dataset-name", type=str, default=defaults["dataset_name"],
-                      help="Name of the dataset")
-    parser.add_argument("--train-dir", type=str, default=defaults["train_dir"],
-                      help="Training data directory")
-    parser.add_argument("--val-dir", type=str, default=defaults["val_dir"],
-                      help="Validation data directory")
-    parser.add_argument("--val-n-samples", type=int, default=defaults["val_n_samples"],
-                      help="Number of samples for FID calculation")
-    parser.add_argument("--root-output-dir", type=str, default=defaults["root_output_dir"],
-                      help="Root output directory. Default is 'checkpoints'.")
-    # Add conditional generation arguments
-    parser.add_argument("--is-conditional", type=str2bool, default=defaults["is_conditional"],
-                      help="Whether to use conditional generation")
-    parser.add_argument("--attribute-file", type=str, default=defaults["attribute_file"],
-                      help="Path to the attribute labels file")
-    parser.add_argument("--num-attributes", type=int, default=defaults["num_attributes"],
-                      help="Number of attributes in the dataset (e.g., 40 for CelebA)")
+    parser.add_argument("--model", type=str, default=defaults["model"])
+    parser.add_argument("--run-name", type=str, default=defaults["run_name"])
+    parser.add_argument("--image-size", type=int, default=defaults["image_size"])
+    parser.add_argument("--train-batch-size", type=int, default=defaults["train_batch_size"])
+    parser.add_argument("--eval-batch-size", type=int, default=defaults["eval_batch_size"])
+    parser.add_argument("--num-epochs", type=int, default=defaults["num_epochs"])
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=defaults["gradient_accumulation_steps"])
+    parser.add_argument("--learning-rate", type=float, default=defaults["learning_rate"])
+    parser.add_argument("--weight-decay", type=float, default=defaults["weight_decay"])
+    parser.add_argument("--lr-warmup-steps", type=int, default=defaults["lr_warmup_steps"])
+    parser.add_argument("--seed", type=int, default=defaults["seed"])
+    parser.add_argument("--save-image-epochs", type=int, default=defaults["save_image_epochs"])
+    parser.add_argument("--save-model-epochs", type=int, default=defaults["save_model_epochs"])
+    parser.add_argument("--mixed-precision", type=str, choices=["no", "fp16"], default=defaults["mixed_precision"])
+    parser.add_argument("--output-dir", type=str, default=defaults["output_dir"])
+    parser.add_argument("--dataset-name", type=str, default=defaults["dataset_name"])
+    parser.add_argument("--train-dir", type=str, default=defaults["train_dir"])
+    parser.add_argument("--val-dir", type=str, default=defaults["val_dir"])
+    parser.add_argument("--val-n-samples", type=int, default=defaults["val_n_samples"])
+    parser.add_argument("--root-output-dir", type=str, default=defaults["root_output_dir"])
+    parser.add_argument("--is-conditional", type=str2bool, default=defaults["is_conditional"])
+    parser.add_argument("--attribute-file", type=str, default=defaults["attribute_file"])
+    parser.add_argument("--num-attributes", type=int, default=defaults["num_attributes"])
+    parser.add_argument("--grid-attribute-indices", type=int, nargs="+", default=defaults["grid_attribute_indices"])
+    parser.add_argument("--grid-num-samples", type=int, default=defaults["grid_num_samples"])
+    parser.add_argument("--grid-sample-random-remaining-indices", type=str2bool, default=defaults["grid_sample_random_remaining_indices"])
+    parser.add_argument("--use-wandb", type=str2bool, default=defaults["use_wandb"])
+    parser.add_argument("--wandb-project", type=str, default=defaults["wandb_project"])
+    parser.add_argument("--wandb-entity", type=str, default=defaults["wandb_entity"])
+    parser.add_argument("--use-ema", type=str2bool, default=defaults["use_ema"])
+    parser.add_argument("--use-scale-shift-norm", type=str2bool, default=defaults["use_scale_shift_norm"])
+    parser.add_argument("--scheduler-type", type=str, choices=["ddpm", "ddim"], default=defaults["scheduler_type"])
+    parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"])
 
-    # Add grid visualization parameters
-    parser.add_argument("--grid-attribute-indices", type=int, nargs="+", default=defaults["grid_attribute_indices"],
-                      help="List of attribute indices for grid visualization (e.g., --grid-attribute-indices 0 5 10)")
-    parser.add_argument("--grid-num-samples", type=int, default=defaults["grid_num_samples"],
-                      help="Number of samples in the visualization grid")
-    parser.add_argument("--grid-sample-random-remaining-indices", type=str2bool, default=defaults["grid_sample_random_remaining_indices"],
-                      help="Whether to randomly sample remaining indices for grid visualization")
-
-    parser.add_argument("--use-wandb", type=str2bool, default=defaults["use_wandb"],
-                      help="Use Wandb to track experiments")
-    parser.add_argument("--wandb-project", type=str, default=defaults["wandb_project"],
-                      help="Name of the WandB project")
-    parser.add_argument("--wandb-entity", type=str, default=defaults["wandb_entity"],
-                      help="Name of the WandB entity")
-    parser.add_argument("--use-ema", type=bool, default=defaults["use_ema"], 
-    		      help="Enable EMA tracking of model weights")
-    parser.add_argument("--use-scale-shift-norm", type=bool, default=defaults["use_scale_shift_norm"], 
-                      help="Use scale-shift normalization")
-    
-    # Add scheduler type argument
-    parser.add_argument("--scheduler-type", type=str, choices=["ddpm", "ddim"], default=defaults["scheduler_type"],
-                      help="Scheduler type")
-    parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"],
-                      help="Number of training timesteps")
-    # Parse arguments
     args = parser.parse_args()
+
+    # Step 1: Start with CLI args
+    cli_config = vars(args)
+
+    # Step 2: Load YAML config if provided
+    if args.config:
+        yaml_config = OmegaConf.load(args.config)
+        cli_config = {**cli_config, **yaml_config}  # CLI first, YAML second
+
     
-    # Convert args to dict and handle special cases
-    config_dict = vars(args)
-    
-    # Create and return TrainingConfig instance
-    return TrainingConfig(**config_dict)
+    # Step 3: Apply any CLI override key=value
+    if args.override:
+        override_cfg = OmegaConf.from_dotlist(args.override)
+        cli_config = OmegaConf.merge(cli_config, override_cfg)
+
+    # Remove non-model args (helper-only)
+    cli_config.pop("config", None)
+    cli_config.pop("override", None)
+
+    return TrainingConfig(**cli_config)
+
