@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from accelerate import Accelerator
 from diffusers import DDPMPipeline
 import wandb
+from ema_pytorch import EMA
 
 from diffusion_models.utils.generation import generate_grid_images, generate_grid_images_attributes
 from diffusion_models.utils.metrics import generate_and_calculate_fid, generate_and_calculate_fid_attributes
@@ -28,7 +29,8 @@ def train_loop(
     grid_attributes=None,
     val_attributes=None,
     attribute_embedder=None,
-    vae=None
+    vae=None,
+    ema=None
 ):
     """Main training loop.
     
@@ -46,6 +48,7 @@ def train_loop(
         val_attributes: Optional tensor of attributes for FID validation
         attribute_embedder: Optional module to project attributes to hidden states
         vae: Optional VAE model
+        ema: Optional EMA model
     """
     # Initialize accelerator and tensorboard logging
     accelerator = Accelerator(
@@ -75,6 +78,12 @@ def train_loop(
     # Initialize best FID score tracking
     best_fid_score = float('inf')
     best_epoch = 0
+    # Load EMA weights if resuming training
+    if ema:
+        ema_path = os.path.join(config.output_dir, "ema.pt")
+        if os.path.exists(ema_path):
+            print(f"[INFO] Loading EMA from {ema_path}")
+            ema.load_state_dict(torch.load(ema_path, map_location="cpu"))
 
     # Prepare everything
     if is_conditional and attribute_embedder is not None:
@@ -87,9 +96,12 @@ def train_loop(
         )
     if vae is not None:
         vae = accelerator.prepare(vae)
-
+    
     if val_dataloader:
         val_dataloader = accelerator.prepare(val_dataloader)
+
+    if ema:
+        ema.to(accelerator.device)
 
     global_step = 0
 
@@ -146,6 +158,8 @@ def train_loop(
 
                 accelerator.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
+                if ema:
+                    ema.update()
                 lr_scheduler.step()
                 optimizer.zero_grad()
 
@@ -188,10 +202,10 @@ def train_loop(
                     )
                 else:
                     # For unconditional generation, use DDPMPipeline
-                    pipeline = DDPMPipeline(
-                        unet=accelerator.unwrap_model(model),
-                        scheduler=noise_scheduler,
-                    )
+                    if ema:
+                        pipeline = DDPMPipeline(unet=accelerator.unwrap_model(ema.ema_model), scheduler=noise_scheduler)
+                    else:
+                        pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
                     # For unconditional model
                     _, image_grid = generate_grid_images(config, epoch, pipeline)
 
@@ -233,10 +247,8 @@ def train_loop(
                     
                     # Log to WandB
                     if config.use_wandb:
-                        wandb.log({
-                            "validation/fid_score": fid_score
-                        })
-                    
+                        wandb.log({"validation/fid_score": fid_score})
+                        
                     # Save best model if FID score improves
                     if fid_score < best_fid_score:
                         best_fid_score = fid_score
@@ -253,6 +265,8 @@ def train_loop(
                             "loss": loss.item(),
                             "fid_score": best_fid_score,
                         }, os.path.join(config.output_dir, "best_model", "optimizer", "optimizer.pth"))
+                        if ema:
+                            torch.save(ema.state_dict(), os.path.join(config.output_dir, "best_model", "ema.pt"))
 
             if (epoch + 1) % config.save_model_epochs == 0 or epoch == config.num_epochs - 1:
                 # Save most recent checkpoint
@@ -264,3 +278,6 @@ def train_loop(
                     "scaler_state_dict": accelerator.scaler.state_dict(),
                     "loss": loss.item(),
                 }, os.path.join(config.output_dir, "optimizer", "optimizer.pth"))
+                if ema:
+                    torch.save(ema.state_dict(), os.path.join(config.output_dir, "ema.pt"))
+
