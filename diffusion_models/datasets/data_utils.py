@@ -2,6 +2,7 @@
 
 from torchvision import transforms
 from typing import Dict, Any
+from torchvision.transforms import InterpolationMode
 
 
 def get_preprocess_transform(image_size: int) -> transforms.Compose:
@@ -14,7 +15,7 @@ def get_preprocess_transform(image_size: int) -> transforms.Compose:
         Preprocessing transform
     """
     return transforms.Compose([
-        transforms.Resize((image_size, image_size)),  # Resize to target size
+        transforms.Resize((image_size, image_size), interpolation=InterpolationMode.LANCZOS),  # Resize to target size
         transforms.RandomHorizontalFlip(),  # Random horizontal flip
         transforms.ToTensor(),  # Convert to tensor in [0, 1] range
         transforms.Normalize([0.5], [0.5]),  # Normalize to [-1, 1] range

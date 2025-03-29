@@ -10,6 +10,8 @@ from diffusion_models.datasets.dataloader import setup_dataloader, create_attrib
 from diffusion_models.training_loop import train_loop
 from diffusion_models.noise_schedulers.ddim_scheduler import create_ddim_scheduler
 from diffusion_models.noise_schedulers.ddpm_scheduler import create_ddpm_scheduler
+from ema_pytorch import EMA
+
 from diffusers.optimization import get_cosine_schedule_with_warmup
 from diffusion_models.utils.attribute_utils import (
     create_sample_attributes,
@@ -37,8 +39,17 @@ def main():
     if config.model == "unet_notebook":
         from diffusion_models.models.unet_notebook import create_model
         model = create_model(config)
-    elif config.model == "dit":
-        from diffusion_models.models.dit import create_model
+    elif config.model == "unet_notebook_r1":
+        from diffusion_models.models.unet_notebook_r1 import create_model
+        model = create_model(config)
+    elif config.model == "unet_notebook_r2":
+        from diffusion_models.models.unet_notebook_r2 import create_model
+        model = create_model(config)
+    elif config.model == "unet_notebook_r4":
+        from diffusion_models.models.unet_notebook_r4 import create_model
+        model = create_model(config)
+    elif config.model == "unet_notebook_r5":
+        from diffusion_models.models.unet_notebook_r5 import create_model
         model = create_model(config)
     elif config.model == "conditional_unet":
         from diffusion_models.models.conditional_unet import create_model
@@ -73,16 +84,17 @@ def main():
     else:
         raise ValueError(f"Invalid model type: {config.model}")
     
-    # Initialize WandB if enabled
+    ema = EMA(model, beta=0.9999, update_after_step=0, update_every=1) if config.use_ema else None
+
     if config.use_wandb:
-        wandb.finish()  # Finish previous if existed
-        run = wandb.init(
+        wandb.finish()
+        wandb.init(
             entity=config.wandb_entity,
             project=config.wandb_project,
             name=config.run_name,
             config=config,
         )
-    
+
     # Setup training dataset and preprocessing
     if config.is_conditional:
         # Use attribute dataloader for conditional training
@@ -210,7 +222,8 @@ def main():
         grid_attributes=grid_attributes,
         val_attributes=val_attributes,
         attribute_embedder=attribute_embedder,
-        vae=vae
+        vae=vae,
+        ema=ema
     )
 
     # Close wandb run
