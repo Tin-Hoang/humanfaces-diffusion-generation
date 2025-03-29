@@ -11,11 +11,11 @@ python scripts/generate.py \
     --seed 42
 
 # DDIM generation (faster)
-python scripts/generate.py \
-    --checkpoint "checkpoints/ddpm-celebahq-128-27000train-20250316_141247" \
-    --pipeline ddim \
-    --num-inference-steps 100 \
-    --num-images 300 \
-    --output-dir "outputs/samples/ddim_fast_from_27000train" \
-    --batch-size 16 \
-    --seed 42
+# python scripts/generate.py \
+#     --checkpoint "checkpoints/ddpm-celebahq-128-27000train-20250316_141247" \
+#     --pipeline ddim \
+#     --num-inference-steps 100 \
+#     --num-images 300 \
+#     --output-dir "outputs/samples/ddim_fast_from_27000train" \
+#     --batch-size 16 \
+#     --seed 42
