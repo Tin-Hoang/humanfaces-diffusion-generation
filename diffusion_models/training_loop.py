@@ -261,7 +261,7 @@ def train_loop(
                         torch.save({
                             "epoch": epoch,
                             "optimizer_state_dict": optimizer.state_dict(),
-                            "scaler_state_dict": accelerator.scaler.state_dict(),
+                            "scaler_state_dict": accelerator.scaler.state_dict() if accelerator.scaler is not None else None,
                             "loss": loss.item(),
                             "fid_score": best_fid_score,
                         }, os.path.join(config.output_dir, "best_model", "optimizer", "optimizer.pth"))
@@ -275,7 +275,7 @@ def train_loop(
                 torch.save({
                     "epoch": epoch,
                     "optimizer_state_dict": optimizer.state_dict(),
-                    "scaler_state_dict": accelerator.scaler.state_dict(),
+                    "scaler_state_dict": accelerator.scaler.state_dict() if accelerator.scaler is not None else None,
                     "loss": loss.item(),
                 }, os.path.join(config.output_dir, "optimizer", "optimizer.pth"))
                 if ema:

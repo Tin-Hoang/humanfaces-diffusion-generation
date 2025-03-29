@@ -85,7 +85,7 @@ class TrainingConfig:
             self.root_output_dir = "checkpoints"
 
         if not self.output_dir:
-            self.output_dir = f"{self.root_output_dir}/{self.run_name}"
+            self.output_dir = os.path.join(self.root_output_dir, self.run_name)
             print(f"No output_dir provided, using default: {self.output_dir}")
 
         # train_dir could be from Hugging Face or local directory
