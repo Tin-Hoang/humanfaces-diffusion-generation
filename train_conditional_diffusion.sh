@@ -24,6 +24,7 @@ python scripts/train.py \
     --scheduler-type ddim \
     --dataset-name "celebamask_hq_256_27000train" \
     --train-dir "data/CelebA-HQ-split/train_27000" \
+    --root-output-dir "/scratch/group_5/diffusion_checkpoints" \
     --is-conditional True \
     --num-attributes 40 \
     --attribute-file "data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt" \
