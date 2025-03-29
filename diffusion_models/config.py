@@ -41,6 +41,7 @@ class TrainingConfig:
     save_model_epochs: int = 5
     num_workers: int = 4
     mixed_precision: str = "fp16"  # `no` for float32, `fp16` for automatic mixed precision
+    root_output_dir: str = "checkpoints"
     output_dir: Optional[str] = None  # Will be set in parse_args
     dataset_name: str = "celeba_hq_128_2700train"  # Customize the dataset name to note the dataset used
     train_dir: str = "data/celeba_hq_split/train"  # Add train directory
@@ -80,8 +81,11 @@ class TrainingConfig:
         self.run_name += f"_{timestamp}"
     
         # Set output_dir if not provided
+        if not self.root_output_dir:
+            self.root_output_dir = "checkpoints"
+
         if not self.output_dir:
-            self.output_dir = f"checkpoints/{self.run_name}"
+            self.output_dir = f"{self.root_output_dir}/{self.run_name}"
             print(f"No output_dir provided, using default: {self.output_dir}")
 
         # train_dir could be from Hugging Face or local directory
@@ -147,9 +151,8 @@ def parse_args() -> TrainingConfig:
                       help="Validation data directory")
     parser.add_argument("--val-n-samples", type=int, default=defaults["val_n_samples"],
                       help="Number of samples for FID calculation")
-    parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"],
-                      help="Number of training timesteps")
-    
+    parser.add_argument("--root-output-dir", type=str, default=defaults["root_output_dir"],
+                      help="Root output directory. Default is 'checkpoints'.")
     # Add conditional generation arguments
     parser.add_argument("--is-conditional", type=str2bool, default=defaults["is_conditional"],
                       help="Whether to use conditional generation")
@@ -186,7 +189,8 @@ def parse_args() -> TrainingConfig:
     # Add scheduler type argument
     parser.add_argument("--scheduler-type", type=str, choices=["ddpm", "ddim"], default=defaults["scheduler_type"],
                       help="Scheduler type")
-    
+    parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"],
+                      help="Number of training timesteps")
     # Parse arguments
     args = parser.parse_args()
     
