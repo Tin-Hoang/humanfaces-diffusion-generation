@@ -127,39 +127,75 @@ def parse_args() -> TrainingConfig:
     defaults["output_dir"] = None
     defaults["run_name"] = None
 
-    parser.add_argument("--model", type=str, default=defaults["model"])
-    parser.add_argument("--run-name", type=str, default=defaults["run_name"])
-    parser.add_argument("--image-size", type=int, default=defaults["image_size"])
-    parser.add_argument("--train-batch-size", type=int, default=defaults["train_batch_size"])
-    parser.add_argument("--eval-batch-size", type=int, default=defaults["eval_batch_size"])
-    parser.add_argument("--num-epochs", type=int, default=defaults["num_epochs"])
-    parser.add_argument("--gradient-accumulation-steps", type=int, default=defaults["gradient_accumulation_steps"])
-    parser.add_argument("--learning-rate", type=float, default=defaults["learning_rate"])
-    parser.add_argument("--weight-decay", type=float, default=defaults["weight_decay"])
-    parser.add_argument("--lr-warmup-steps", type=int, default=defaults["lr_warmup_steps"])
-    parser.add_argument("--seed", type=int, default=defaults["seed"])
-    parser.add_argument("--save-image-epochs", type=int, default=defaults["save_image_epochs"])
-    parser.add_argument("--save-model-epochs", type=int, default=defaults["save_model_epochs"])
-    parser.add_argument("--mixed-precision", type=str, choices=["no", "fp16"], default=defaults["mixed_precision"])
-    parser.add_argument("--output-dir", type=str, default=defaults["output_dir"])
-    parser.add_argument("--dataset-name", type=str, default=defaults["dataset_name"])
-    parser.add_argument("--train-dir", type=str, default=defaults["train_dir"])
-    parser.add_argument("--val-dir", type=str, default=defaults["val_dir"])
-    parser.add_argument("--val-n-samples", type=int, default=defaults["val_n_samples"])
-    parser.add_argument("--root-output-dir", type=str, default=defaults["root_output_dir"])
-    parser.add_argument("--is-conditional", type=str2bool, default=defaults["is_conditional"])
-    parser.add_argument("--attribute-file", type=str, default=defaults["attribute_file"])
-    parser.add_argument("--num-attributes", type=int, default=defaults["num_attributes"])
-    parser.add_argument("--grid-attribute-indices", type=int, nargs="+", default=defaults["grid_attribute_indices"])
-    parser.add_argument("--grid-num-samples", type=int, default=defaults["grid_num_samples"])
-    parser.add_argument("--grid-sample-random-remaining-indices", type=str2bool, default=defaults["grid_sample_random_remaining_indices"])
-    parser.add_argument("--use-wandb", type=str2bool, default=defaults["use_wandb"])
-    parser.add_argument("--wandb-project", type=str, default=defaults["wandb_project"])
-    parser.add_argument("--wandb-entity", type=str, default=defaults["wandb_entity"])
-    parser.add_argument("--use-ema", type=str2bool, default=defaults["use_ema"])
-    parser.add_argument("--use-scale-shift-norm", type=str2bool, default=defaults["use_scale_shift_norm"])
-    parser.add_argument("--scheduler-type", type=str, choices=["ddpm", "ddim"], default=defaults["scheduler_type"])
-    parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"])
+    # Add arguments for each config field with help text
+    parser.add_argument("--model", type=str, default=defaults["model"],
+                    help="Model to use")
+    parser.add_argument("--run-name", type=str, default=defaults["run_name"],
+                    help="Name for the run. Used for WandB and output directory naming")
+    parser.add_argument("--image-size", type=int, default=defaults["image_size"],
+                    help="The generated image resolution")
+    parser.add_argument("--train-batch-size", type=int, default=defaults["train_batch_size"],
+                    help="Training batch size")
+    parser.add_argument("--eval-batch-size", type=int, default=defaults["eval_batch_size"],
+                    help="Evaluation batch size")
+    parser.add_argument("--num-epochs", type=int, default=defaults["num_epochs"],
+                    help="Number of training epochs")
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=defaults["gradient_accumulation_steps"],
+                    help="Number of gradient accumulation steps")
+    parser.add_argument("--learning-rate", type=float, default=defaults["learning_rate"],
+                    help="Learning rate")
+    parser.add_argument("--weight-decay", type=float, default=defaults["weight_decay"],
+                    help="Weight decay for optimizer")
+    parser.add_argument("--lr-warmup-steps", type=int, default=defaults["lr_warmup_steps"],
+                    help="Number of learning rate warmup steps")
+    parser.add_argument("--seed", type=int, default=defaults["seed"],
+                    help="Random seed")
+    parser.add_argument("--save-image-epochs", type=int, default=defaults["save_image_epochs"],
+                    help="Save generated images every N epochs")
+    parser.add_argument("--save-model-epochs", type=int, default=defaults["save_model_epochs"],
+                    help="Save model checkpoints every N epochs")
+    parser.add_argument("--mixed-precision", type=str, choices=["no", "fp16"], default=defaults["mixed_precision"],
+                    help="Mixed precision training type (no, fp16)")
+    parser.add_argument("--output-dir", type=str, default=defaults["output_dir"],
+                    help="Output directory for model checkpoints and samples")
+    parser.add_argument("--dataset-name", type=str, default=defaults["dataset_name"],
+                    help="Name of the dataset to use")
+    parser.add_argument("--train-dir", type=str, default=defaults["train_dir"],
+                    help="Directory containing training data")
+    parser.add_argument("--val-dir", type=str, default=defaults["val_dir"],
+                    help="Directory containing validation data")
+    parser.add_argument("--val-n-samples", type=int, default=defaults["val_n_samples"],
+                    help="Number of validation samples used for evaluation (e.g. FID)")
+    parser.add_argument("--root-output-dir", type=str, default=defaults["root_output_dir"],
+                    help="Root directory to store all run outputs")
+    parser.add_argument("--is-conditional", type=str2bool, default=defaults["is_conditional"],
+                    help="Enable conditional generation")
+    parser.add_argument("--attribute-file", type=str, default=defaults["attribute_file"],
+                    help="Path to attribute file for conditional generation")
+    parser.add_argument("--num-attributes", type=int, default=defaults["num_attributes"],
+                    help="Number of attributes used for conditional generation")
+    parser.add_argument("--grid-attribute-indices", type=int, nargs="+", default=defaults["grid_attribute_indices"],
+                    help="Attribute indices to use in grid image generation")
+    parser.add_argument("--grid-num-samples", type=int, default=defaults["grid_num_samples"],
+                    help="Number of samples per attribute combination in grid generation")
+    parser.add_argument("--grid-sample-random-remaining-indices", type=str2bool, default=defaults["grid_sample_random_remaining_indices"],
+                    help="Randomly sample remaining attributes not specified in grid")
+    parser.add_argument("--use-wandb", type=str2bool, default=defaults["use_wandb"],
+                    help="Use Weights & Biases (WandB) for experiment tracking")
+    parser.add_argument("--wandb-project", type=str, default=defaults["wandb_project"],
+                    help="Name of the WandB project")
+    parser.add_argument("--wandb-entity", type=str, default=defaults["wandb_entity"],
+                    help="WandB team or user account name")
+    parser.add_argument("--use-ema", type=str2bool, default=defaults["use_ema"],
+                    help="Enable Exponential Moving Average (EMA) of model weights")
+    parser.add_argument("--use-scale-shift-norm", type=str2bool, default=defaults["use_scale_shift_norm"],
+                    help="Use scale-shift normalization in the model")
+    parser.add_argument("--scheduler-type", type=str, choices=["ddpm", "ddim"], default=defaults["scheduler_type"],
+                    help="Noise scheduler type to use")
+    parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"],
+                    help="Number of diffusion timesteps used during training")
+
+
 
     args = parser.parse_args()
 
