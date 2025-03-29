@@ -66,8 +66,8 @@ class TrainingConfig:
     use_wandb: bool = True  # Whether to use WandB logging
     wandb_project: Optional[str] = "EEEM068_Diffusion_Models"
     wandb_entity: Optional[str] = "tin-hoang"
-    use_ema: bool = True
-    use_scale_shift_norm: bool = True
+    use_ema: bool = False
+    use_scale_shift_norm: bool = False
 
     def __post_init__(self):
         """Set default output_dir if not provided."""
@@ -135,6 +135,8 @@ def parse_args() -> TrainingConfig:
                       help="Weight decay for optimizer")
     parser.add_argument("--lr-warmup-steps", type=int, default=defaults["lr_warmup_steps"],
                       help="Number of learning rate warmup steps")
+    parser.add_argument("--seed", type=int, default=defaults["seed"],
+                      help="Random seed")
     parser.add_argument("--save-image-epochs", type=int, default=defaults["save_image_epochs"],
                       help="Save generated images every N epochs")
     parser.add_argument("--save-model-epochs", type=int, default=defaults["save_model_epochs"],
@@ -168,23 +170,17 @@ def parse_args() -> TrainingConfig:
                       help="Number of samples in the visualization grid")
     parser.add_argument("--grid-sample-random-remaining-indices", type=str2bool, default=defaults["grid_sample_random_remaining_indices"],
                       help="Whether to randomly sample remaining indices for grid visualization")
-    
-    parser.add_argument("--overwrite-output-dir", action="store_true",
-                      help="Overwrite output directory if it exists")
-    parser.add_argument("--seed", type=int, default=defaults["seed"],
-                      help="Random seed")
+
     parser.add_argument("--use-wandb", type=str2bool, default=defaults["use_wandb"],
                       help="Use Wandb to track experiments")
     parser.add_argument("--wandb-project", type=str, default=defaults["wandb_project"],
                       help="Name of the WandB project")
     parser.add_argument("--wandb-entity", type=str, default=defaults["wandb_entity"],
                       help="Name of the WandB entity")
-    parser.add_argument("--use-ema", type=bool, default=False, 
+    parser.add_argument("--use-ema", type=bool, default=defaults["use_ema"], 
     		      help="Enable EMA tracking of model weights")
-    parser.add_argument("--use-scale-shift-norm", type=bool, default=False, 
+    parser.add_argument("--use-scale-shift-norm", type=bool, default=defaults["use_scale_shift_norm"], 
                       help="Use scale-shift normalization")
-
-
     
     # Add scheduler type argument
     parser.add_argument("--scheduler-type", type=str, choices=["ddpm", "ddim"], default=defaults["scheduler_type"],

@@ -28,7 +28,6 @@ python scripts/train.py \
     --val-n-samples 100 \
     --root-output-dir "/scratch/group_5/diffusion_checkpoints" \
     --num-train-timesteps 1000 \
-    --overwrite-output-dir \
     --seed 42 \
     --use-wandb True \
     --wandb-project "EEEM068_Diffusion_Models" \

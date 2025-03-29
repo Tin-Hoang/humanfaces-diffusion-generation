@@ -32,7 +32,6 @@ python scripts/train.py \
     --grid-num-samples 16 \
     --grid-sample-random-remaining-indices True \
     --num-train-timesteps 1000 \
-    --overwrite-output-dir \
     --seed 42 \
     --use-wandb True \
     --wandb-project "EEEM068_Diffusion_Models" \
