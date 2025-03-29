@@ -38,6 +38,7 @@ dependencies = [
     "gradio>=5.22.0",
     "torchmetrics[image]>=1.6.3",
     "ema-pytorch>=0.1.0" ,
+    "omegaconf>=2.3.0" ,
 ]
 
 # Development and optional dependencies
