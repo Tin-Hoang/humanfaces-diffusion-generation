@@ -23,7 +23,7 @@ root_output_dir: /scratch/group_5/diffusion_checkpoints
 train_dir: data/CelebA-Large-split/train_162k
 val_dir: null
 val_n_samples: null
-dataset_name: celeba_large_256
+dataset_name: celeba_large_256_162ktrain
 num_workers: 4
 
 # Diffusion configuration
