@@ -195,6 +195,12 @@ def train_loop(
                         pipeline = DDPMPipeline(unet=accelerator.unwrap_model(ema.ema_model), scheduler=noise_scheduler)
                     else:
                         pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+                        
+                    # Move the pipeline to the accelerator device.
+                    pipeline = pipeline.to(accelerator.device)
+                    # Manually assign the device attribute.
+                    pipeline.device = accelerator.device
+
                     # For unconditional model
                     _, image_grid = generate_grid_images(config, epoch, pipeline)
 
