@@ -10,11 +10,11 @@ model_params:
   depth: 12              # Number of transformer encoder layers
   num_heads: 8           # Number of attention heads per transformer layer
   patch_size: 16         # Size of each square patch (image dimensions must be divisible by this)
-  img_size: 128          # Expected image resolution (should be divisible by patch_size)
+  img_size: 256          # Expected image resolution (should be divisible by patch_size)
 
 # Run and experiment settings.
 run_name: "dit_transformer_experiment"
-image_size: 128         # This should match the img_size used in the model parameters.
+image_size: 256         # This should match the img_size used in the model parameters.
 
 # Training hyperparameters.
 train_batch_size: 16

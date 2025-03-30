@@ -1,6 +1,6 @@
-# diffusion_models/models/dit_transformer.py
 import torch
 import torch.nn as nn
+import types  # Needed to create a simple config object
 
 class DiTTransformer2DModel(nn.Module):
     def __init__(self, in_channels=3, embed_dim=512, depth=12, num_heads=8, patch_size=16, img_size=256, **kwargs):
@@ -10,6 +10,13 @@ class DiTTransformer2DModel(nn.Module):
         self.patch_size = patch_size
         self.img_size = img_size
         self.num_patches = (img_size // patch_size) ** 2
+
+        # Create a minimal config object that diffusers pipelines expect
+        self.config = types.SimpleNamespace()
+        self.config.sample_size = img_size         # The input resolution (256)
+        self.config.in_channels = in_channels        # e.g., 3 for RGB images
+        self.config.out_channels = in_channels       # Typically the same as in_channels
+        # If needed, you can add more attributes here (e.g., cross_attention_dim)
 
         self.patch_embed = nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size)
         self.pos_embed = nn.Parameter(torch.zeros(1, self.num_patches, embed_dim))
@@ -51,7 +58,6 @@ class DiTTransformer2DModel(nn.Module):
         x = x.permute(0, 2, 1, 3, 4).contiguous()
         x = x.view(B, self.in_channels, H, W)
         
-        # Return as expected by the training loop
         if return_dict:
             return {"sample": x}
         else:

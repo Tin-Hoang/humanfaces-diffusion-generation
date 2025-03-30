@@ -9,9 +9,9 @@
 
 # Training with parameters
 python scripts/train.py \
-    --model unet_notebook \
-    --run-name "unet2d_128_ddpm_2700train" \
-    --image-size 128 \
+    --model dit_transformer \
+    --run-name "dit_transformer_128_ddpm_2700train" \
+    --image-size 256 \
     --train-batch-size 16 \
     --eval-batch-size 16 \
     --num-epochs 100 \
