@@ -54,6 +54,10 @@ def main():
     elif config.model == "unet_notebook_r5":
         from diffusion_models.models.unet_notebook_r5 import create_model
         model = create_model(config)
+    elif config.model == "dit_transformer":
+        from diffusion_models.models.dit_transformer_d1 import create_model
+        model = create_model(config)
+        
     elif config.model == "conditional_unet":
         from diffusion_models.models.conditional_unet import create_model
         from diffusion_models.models.attribute_embedder import AttributeEmbedder
