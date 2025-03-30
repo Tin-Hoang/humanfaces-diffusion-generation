@@ -9,23 +9,47 @@ import torch.nn.functional as F
 from accelerate import Accelerator
 from diffusers import DDPMPipeline
 import wandb
+from ema_pytorch import EMA
 
-from diffusion_models.utils.generation import generate_grid_images
-from diffusion_models.utils.metrics import generate_and_calculate_fid
+from diffusion_models.utils.generation import generate_grid_images, generate_grid_images_attributes
+from diffusion_models.utils.metrics import generate_and_calculate_fid, generate_and_calculate_fid_attributes
+from diffusion_models.pipelines.attribute_pipeline import AttributeDiffusionPipeline
 
 
-def get_full_repo_name(model_id: str, organization: str = None, token: str = None):
-    """Get the full repository name for Hugging Face Hub."""
-    if token is None:
-        token = HfFolder.get_token()
-    if organization is None:
-        username = whoami(token)["name"]
-        return f"{username}/{model_id}"
-    else:
-        return f"{organization}/{model_id}"
-
-def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, val_dataloader, preprocess):
-    """Main training loop."""
+def train_loop(
+    config, 
+    model, 
+    noise_scheduler, 
+    optimizer, 
+    train_dataloader, 
+    lr_scheduler=None, 
+    val_dataloader=None, 
+    preprocess=None,
+    is_conditional=False,
+    grid_attributes=None,
+    val_attributes=None,
+    attribute_embedder=None,
+    vae=None,
+    ema=None
+):
+    """Main training loop.
+    
+    Args:
+        config: Training configuration
+        model: The UNet model to train
+        noise_scheduler: The noise scheduler
+        optimizer: The optimizer
+        train_dataloader: Training data loader
+        lr_scheduler: Learning rate scheduler
+        val_dataloader: Optional validation data loader
+        preprocess: Optional preprocessing transform
+        is_conditional: Whether the model is conditional on attributes
+        grid_attributes: Optional tensor of attributes for grid visualization
+        val_attributes: Optional tensor of attributes for FID validation
+        attribute_embedder: Optional module to project attributes to hidden states
+        vae: Optional VAE model
+        ema: Optional EMA model
+    """
     # Initialize accelerator and tensorboard logging
     accelerator = Accelerator(
         mixed_precision=config.mixed_precision,
@@ -50,17 +74,34 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                 ),
                 exclude_fn=lambda path: ".venv" in path  # Exclude any files under .venv
             )
-    
+
     # Initialize best FID score tracking
     best_fid_score = float('inf')
     best_epoch = 0
+    # Load EMA weights if resuming training
+    if ema:
+        ema_path = os.path.join(config.output_dir, "ema.pt")
+        if os.path.exists(ema_path):
+            print(f"[INFO] Loading EMA from {ema_path}")
+            ema.load_state_dict(torch.load(ema_path, map_location="cpu"))
 
     # Prepare everything
-    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, lr_scheduler
-    )
+    if is_conditional and attribute_embedder is not None:
+        model, optimizer, train_dataloader, lr_scheduler, attribute_embedder = accelerator.prepare(
+            model, optimizer, train_dataloader, lr_scheduler, attribute_embedder
+        )
+    else:
+        model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+            model, optimizer, train_dataloader, lr_scheduler
+        )
+    if vae is not None:
+        vae = accelerator.prepare(vae)
+    
     if val_dataloader:
         val_dataloader = accelerator.prepare(val_dataloader)
+
+    if ema:
+        ema.to(accelerator.device)
 
     global_step = 0
 
@@ -68,11 +109,17 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
     for epoch in range(config.num_epochs):
         progress_bar = tqdm(total=len(train_dataloader), disable=not accelerator.is_local_main_process)
         progress_bar.set_description(f"Epoch {epoch}")
+        if vae is not None:
+            vae.eval()  # VAE is pretrained, no training needed
 
         for step, batch in enumerate(train_dataloader):
-            clean_images = batch["images"]
+            # Handle both conditional and unconditional cases
+            if is_conditional:
+                clean_images, attributes = batch
+            else:
+                clean_images = batch["images"]
+            
             # Sample noise to add to the images
-            noise = torch.randn(clean_images.shape).to(clean_images.device)
             bs = clean_images.shape[0]
 
             # Sample a random timestep for each image
@@ -80,17 +127,39 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                 0, noise_scheduler.config.num_train_timesteps, (bs,), device=clean_images.device
             ).long()
 
+            if vae is not None:
+                # For conditional model - encode images to latent space
+                with torch.no_grad():
+                    latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 32, 32)
+                    latents = latents * vae.config.scaling_factor
+                latents = latents.to(clean_images.device)
+                noise = torch.randn_like(latents).to(latents.device)
+            else:
+                # For unconditional model - use the original images
+                noise = torch.randn(clean_images.shape).to(clean_images.device)
+                latents = clean_images
+
             # Add noise to the clean images according to the noise magnitude at each timestep
-            noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
+            noisy_images = noise_scheduler.add_noise(latents, noise, timesteps)
 
             with accelerator.accumulate(model):
                 # Predict the noise residual
-                noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+                if is_conditional and attribute_embedder is not None:
+                    # Project attributes to hidden states
+                    encoder_hidden_states = attribute_embedder(attributes)
+                    # For conditional model, pass projected attributes as encoder_hidden_states
+                    noise_pred = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states, return_dict=False)[0]
+                else:
+                    # For unconditional model
+                    noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+                
                 loss = F.mse_loss(noise_pred, noise)
                 accelerator.backward(loss)
 
                 accelerator.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
+                if ema:
+                    ema.update()
                 lr_scheduler.step()
                 optimizer.zero_grad()
 
@@ -109,14 +178,36 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
 
         # After each epoch you optionally sample some demo images and save the model
         if accelerator.is_main_process:
-            pipeline = DDPMPipeline(
-                unet=accelerator.unwrap_model(model),
-                scheduler=noise_scheduler,
-            )
-
             if (epoch + 1) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:
                 # Generate and save sample images
-                _, image_grid = generate_grid_images(config, epoch, pipeline)
+                if is_conditional:
+                    # Create a pipeline for visualization
+                    if vae is not None:
+                        # Create conditional pipeline with VAE for latent conditioning
+                        pipeline = AttributeDiffusionPipeline(
+                            unet=accelerator.unwrap_model(model),
+                            vae=vae,
+                            scheduler=noise_scheduler,
+                            attribute_embedder=attribute_embedder
+                        )
+                    else:
+                        # Conditional pipeline with direct pixel-space
+                        raise NotImplementedError("Pixel-space conditional generation not supported yet")
+                    
+                    # Move grid attributes to correct device
+                    grid_attributes = grid_attributes.to(accelerator.device)
+                    _, image_grid = generate_grid_images_attributes(
+                        config, epoch, pipeline, 
+                        attributes=grid_attributes
+                    )
+                else:
+                    # For unconditional generation, use DDPMPipeline
+                    if ema:
+                        pipeline = DDPMPipeline(unet=accelerator.unwrap_model(ema.ema_model), scheduler=noise_scheduler)
+                    else:
+                        pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+                    # For unconditional model
+                    _, image_grid = generate_grid_images(config, epoch, pipeline)
 
                 # Log grid images to WandB
                 if config.use_wandb:
@@ -128,22 +219,36 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                 # Calculate FID if validation dataset is available
                 if val_dataloader:
                     print(f"Calculating FID score at epoch {epoch + 1}...")
-                    fid_score = generate_and_calculate_fid(
-                        pipeline=pipeline,
-                        val_dataloader=val_dataloader,
-                        device=accelerator.device,
-                        preprocess=preprocess,
-                        num_train_timesteps=config.num_train_timesteps,
-                        num_samples=config.val_n_samples
-                    )
+                    
+                    if is_conditional and val_attributes is not None:
+                        # Move validation attributes to correct device
+                        val_attributes = val_attributes.to(accelerator.device)
+                        # Use attribute-specific FID calculation
+                        fid_score = generate_and_calculate_fid_attributes(
+                            pipeline=pipeline,
+                            val_dataloader=val_dataloader,
+                            device=accelerator.device,
+                            preprocess=preprocess,
+                            num_train_timesteps=config.num_train_timesteps,
+                            num_samples=config.val_n_samples,
+                            attributes=val_attributes
+                        )
+                    else:
+                        # Use standard FID calculation for unconditional model
+                        fid_score = generate_and_calculate_fid(
+                            pipeline=pipeline,
+                            val_dataloader=val_dataloader,
+                            device=accelerator.device,
+                            preprocess=preprocess,
+                            num_train_timesteps=config.num_train_timesteps,
+                            num_samples=config.val_n_samples
+                        )
                     print(f"FID Score: {fid_score:.2f}")
                     
                     # Log to WandB
                     if config.use_wandb:
-                        wandb.log({
-                            "validation/fid_score": fid_score
-                        })
-                    
+                        wandb.log({"validation/fid_score": fid_score})
+                        
                     # Save best model if FID score improves
                     if fid_score < best_fid_score:
                         best_fid_score = fid_score
@@ -156,10 +261,12 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                         torch.save({
                             "epoch": epoch,
                             "optimizer_state_dict": optimizer.state_dict(),
-                            "scaler_state_dict": accelerator.scaler.state_dict(),
+                            "scaler_state_dict": accelerator.scaler.state_dict() if accelerator.scaler is not None else None,
                             "loss": loss.item(),
                             "fid_score": best_fid_score,
                         }, os.path.join(config.output_dir, "best_model", "optimizer", "optimizer.pth"))
+                        if ema:
+                            torch.save(ema.state_dict(), os.path.join(config.output_dir, "best_model", "ema.pt"))
 
             if (epoch + 1) % config.save_model_epochs == 0 or epoch == config.num_epochs - 1:
                 # Save most recent checkpoint
@@ -168,6 +275,9 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
                 torch.save({
                     "epoch": epoch,
                     "optimizer_state_dict": optimizer.state_dict(),
-                    "scaler_state_dict": accelerator.scaler.state_dict(),
+                    "scaler_state_dict": accelerator.scaler.state_dict() if accelerator.scaler is not None else None,
                     "loss": loss.item(),
                 }, os.path.join(config.output_dir, "optimizer", "optimizer.pth"))
+                if ema:
+                    torch.save(ema.state_dict(), os.path.join(config.output_dir, "ema.pt"))
+

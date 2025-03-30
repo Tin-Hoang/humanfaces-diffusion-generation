@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 import torch
 
-from diffusion_models.pipeline import load_pipeline
+from diffusion_models.pipelines.unconditional_pipeline import load_pipeline
 from diffusion_models.utils.generation import generate_images_to_dir
 
 
