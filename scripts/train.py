@@ -97,6 +97,17 @@ def main():
             name=config.run_name,
             config=config,
         )
+        # Log code using wandb if enabled
+        if config.use_wandb:
+            wandb.run.log_code(
+                root=".",
+                include_fn=lambda path: (
+                    path.endswith(".py") 
+                    or path.endswith(".ipynb") 
+                    or path.endswith(".sh")
+                ),
+                exclude_fn=lambda path: ".venv" in path  
+            )
 
     # Setup training dataset and preprocessing
     if config.is_conditional:
