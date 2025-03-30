@@ -5,6 +5,7 @@ import types  # Needed to create a simple config object
 class DiTTransformer2DModel(nn.Module):
     def __init__(self, in_channels=3, embed_dim=512, depth=12, num_heads=8, patch_size=16, img_size=256, **kwargs):
         super().__init__()
+        self.name = "dit_transformer"
         self.in_channels = in_channels
         self.embed_dim = embed_dim
         self.patch_size = patch_size
