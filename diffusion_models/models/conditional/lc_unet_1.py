@@ -1,4 +1,4 @@
-"""Conditional UNet model for attribute-based latent diffusion."""
+"""Latent Conditional UNet model for attribute-based latent diffusion."""
 
 import torch
 import torch.nn as nn
@@ -18,7 +18,7 @@ def create_model(config: TrainingConfig) -> UNet2DConditionModel:
         config: Training configuration object
         
     Returns:
-        Tuple of (UNet2DConditionModel, AttributeEmbedder)
+        UNet2DConditionModel
     """
     # Create the UNet model for latent diffusion
     model = UNet2DConditionModel(
