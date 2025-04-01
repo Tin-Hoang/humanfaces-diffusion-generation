@@ -33,7 +33,6 @@ def main():
     for key, value in vars(config).items():
         print(f"\t{key}: {value}")
     print("=" * 80)
-    input("Press Enter to continue...")
 
     # Create model and noise scheduler
     model, attribute_embedder, vae = None, None, None
