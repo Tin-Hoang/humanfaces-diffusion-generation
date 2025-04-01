@@ -18,7 +18,8 @@ class DiTTransformer2DModel(nn.Module):
         self.patch_size = patch_size
         self.img_size = img_size
         self.num_patches = (img_size // patch_size) ** 2
-
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
         self.patch_embed = nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size)
         self.pos_embed = nn.Parameter(torch.zeros(1, self.num_patches, embed_dim))
 
