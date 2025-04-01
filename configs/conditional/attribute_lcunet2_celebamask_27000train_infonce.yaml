@@ -1,6 +1,6 @@
 # Model configuration
 model: lc_unet_2
-run_name: attributes_lcunet2_celebamask_27000train_infocne
+run_name: attribute_lcunet2_celebamask_27000train_infocne
 
 # Training configuration
 image_size: 256
@@ -24,13 +24,13 @@ train_dir: data/CelebA-HQ-split/train_27000
 val_dir: null
 val_n_samples: null
 dataset_name: celebamask_hq_256_27000train
-num_workers: 4
+num_workers: 8
 
 # Diffusion configuration
 num_train_timesteps: 1000
 scheduler_type: ddpm
-use_embedding_loss: false
-embedding_loss_lambda: null
+use_embedding_loss: true
+embedding_loss_lambda: 1.0
 
 # WandB configuration
 use_wandb: false
