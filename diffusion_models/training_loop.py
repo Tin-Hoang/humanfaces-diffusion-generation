@@ -198,8 +198,6 @@ def train_loop(
                         
                     # Move the pipeline to the accelerator device.
                     pipeline = pipeline.to(accelerator.device)
-                    # Manually assign the device attribute.
-                    pipeline.device = accelerator.device
 
                     # For unconditional model
                     _, image_grid = generate_grid_images(config, epoch, pipeline)
