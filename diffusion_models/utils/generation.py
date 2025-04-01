@@ -136,23 +136,35 @@ def generate_grid_images(config: TrainingConfig, epoch: int, pipeline: DDPMPipel
     Returns:
         Tuple of (list of generated images, grid image)
     """
-    # Generate sample images
+    # Set the random seed for reproducibility
     generator = torch.manual_seed(config.seed)
-    images = pipeline(
+    
+    # Call the pipeline to generate images
+    output = pipeline(
         batch_size=config.eval_batch_size,
         generator=generator,
         num_inference_steps=config.num_train_timesteps
-    ).images
-
-    # Make a grid out of the images
+    )
+    
+    # Check if the output has an 'images' attribute
+    if hasattr(output, "images"):
+        images = output.images
+    elif isinstance(output, tuple):
+        # If output is a tuple, assume the first element is the generated images
+        images = output[0]
+    else:
+        images = output  # fallback
+    
+    # Create an image grid from the generated images
     image_grid = make_grid(images, rows=4, cols=4)
-
-    # Save the images
+    
+    # Save the grid image to disk
     test_dir = os.path.join(config.output_dir, "samples")
     os.makedirs(test_dir, exist_ok=True)
     image_grid.save(f"{test_dir}/{epoch:04d}.png")
-
+    
     return images, image_grid
+
 
 
 def generate_grid_images_attributes(
