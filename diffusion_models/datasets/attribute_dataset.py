@@ -37,11 +37,11 @@ class AttributeDataset(Dataset):
         
         # Get list of existing images in the directory
         existing_images = set(f"{f}" for f in os.listdir(image_dir) if f.endswith('.jpg'))
-        print(f"\nFound {len(existing_images)} images in directory")
+        print(f"Found {len(existing_images)} images in directory")
         
         # Read the attribute file
         # Skip the first line (number of images) and use the second line as headers
-        print(f"\nReading attribute file: {attribute_label_path}")
+        print(f"Reading attribute file: {attribute_label_path}")
         
         # First read the headers
         with open(attribute_label_path, 'r') as f:
@@ -77,17 +77,17 @@ class AttributeDataset(Dataset):
         
         if len(self.attributes_df) == 0:
             # Print more debugging information
-            print("\nDebugging information:")
+            print("Debugging information:")
             print(f"Total images in attribute file: {len(self.attributes_df)}")
             print(f"Sample of image_ids in attribute file before filtering:")
             print(self.attributes_df['image_id'].head() if len(self.attributes_df) > 0 else "No images found")
-            print("\nSample of image_ids in directory:")
+            print("Sample of image_ids in directory:")
             print(list(existing_images)[:5])
             
             # Check for any potential mismatches
             sample_attr_ids = set(self.attributes_df['image_id'].head().tolist())
             sample_dir_ids = set(list(existing_images)[:5])
-            print("\nChecking for exact matches:")
+            print("Checking for exact matches:")
             print(f"Attribute file IDs: {sample_attr_ids}")
             print(f"Directory IDs: {sample_dir_ids}")
             print(f"Common IDs: {sample_attr_ids.intersection(sample_dir_ids)}")
@@ -102,7 +102,7 @@ class AttributeDataset(Dataset):
         # Get the attribute names (excluding the image_id column)
         self.attribute_names = self.attributes_df.columns[1:].tolist()
         
-        print(f"\nFinal dataset size: {len(self.attributes_df)} images with attributes out of {len(existing_images)} images in directory")
+        print(f"Final dataset size: {len(self.attributes_df)} images with attributes out of {len(existing_images)} images in directory")
         
     def __len__(self) -> int:
         """Return the total number of samples in the dataset."""
