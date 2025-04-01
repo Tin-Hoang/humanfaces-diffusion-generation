@@ -1,6 +1,6 @@
 # Model configuration
 model: lc_unet_2
-run_name: attribute_lcunet2_celebamask_27000train_infocne
+run_name: attribute_lcunet2_celebamask_27000train_infonce
 
 # Training configuration
 image_size: 256
