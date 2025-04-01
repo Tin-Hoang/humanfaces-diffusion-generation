@@ -103,7 +103,7 @@ def main():
         attribute_embedder = AttributeEmbedder(
             input_dim=config.num_attributes,              # 40 binary attributes
             num_layers=3,
-            hidden_dim=512                                # Match cross_attention_dim
+            hidden_dim=256                                # Match cross_attention_dim
         )
         
     else:
@@ -199,6 +199,7 @@ def main():
         optimizer = torch.optim.AdamW(
             model.parameters(),
             lr=config.learning_rate,
+            weight_decay=config.weight_decay
         )
 
     lr_scheduler = get_cosine_schedule_with_warmup(
