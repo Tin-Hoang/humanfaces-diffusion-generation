@@ -33,7 +33,7 @@ def main():
     for key, value in vars(config).items():
         print(f"\t{key}: {value}")
     print("=" * 80)
-    
+
     # Create model and noise scheduler
     model, attribute_embedder, vae = None, None, None
     if config.model == "unet_notebook":
@@ -171,6 +171,7 @@ def main():
         optimizer = torch.optim.AdamW(
             list(model.parameters()) + list(attribute_embedder.parameters()),
             lr=config.learning_rate,
+            weight_decay=config.weight_decay
         )
     else:
         optimizer = torch.optim.AdamW(
