@@ -37,7 +37,6 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         )
         self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)  # 8 for 4 blocks
         self.image_size = image_size
-        print(f"vae_scale_factor: {self.vae_scale_factor}")
         
         # Verify that UNet's sample size matches VAE-scaled image size
         expected_sample_size = image_size // self.vae_scale_factor

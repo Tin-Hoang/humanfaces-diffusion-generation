@@ -184,8 +184,6 @@ def train_loop(
             accelerator.log(logs, step=global_step)
             global_step += 1
 
-            break
-
         # After each epoch you optionally sample some demo images and save the model
         if accelerator.is_main_process:
             if (epoch + 1) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:

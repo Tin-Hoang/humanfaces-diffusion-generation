@@ -24,7 +24,7 @@ train_dir: data/CelebA-HQ-split/train_27000
 val_dir: null
 val_n_samples: null
 dataset_name: celebamask_hq_256_27000train
-num_workers: 4
+num_workers: 8
 
 # Diffusion configuration
 num_train_timesteps: 1000
