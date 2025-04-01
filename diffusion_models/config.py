@@ -56,6 +56,8 @@ class TrainingConfig:
     is_conditional: bool = False  # Whether to use conditional generation
     attribute_file: Optional[str] = None  # Path to the attribute labels file
     num_attributes: int = 40  # Number of attributes (e.g., 40 for CelebA)
+    use_embedding_loss: bool = False  # Whether to calculate embedding loss
+    embedding_loss_lambda: float = 1.0  # Lambda for embedding loss
 
     # Grid visualization parameters
     grid_attribute_indices: Optional[List[int]] = None  # Specific attributes for grid visualization
@@ -174,6 +176,10 @@ def parse_args() -> TrainingConfig:
                     help="Path to attribute file for conditional generation")
     parser.add_argument("--num-attributes", type=int, default=defaults["num_attributes"],
                     help="Number of attributes used for conditional generation")
+    parser.add_argument("--use-embedding-loss", type=str2bool, default=defaults["use_embedding_loss"],
+                    help="Enable embedding loss")
+    parser.add_argument("--embedding-loss-lambda", type=float, default=defaults["embedding_loss_lambda"],
+                    help="Lambda for embedding loss")
     parser.add_argument("--grid-attribute-indices", type=int, nargs="+", default=defaults["grid_attribute_indices"],
                     help="Attribute indices to use in grid image generation")
     parser.add_argument("--grid-num-samples", type=int, default=defaults["grid_num_samples"],

@@ -35,8 +35,9 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             scheduler=scheduler,
             attribute_embedder=attribute_embedder
         )
-        self.vae_scale_factor = 2 ** (len(self.unet.config.block_out_channels) - 1)  # 8 for 4 blocks
+        self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)  # 8 for 4 blocks
         self.image_size = image_size
+        print(f"vae_scale_factor: {self.vae_scale_factor}")
         
         # Verify that UNet's sample size matches VAE-scaled image size
         expected_sample_size = image_size // self.vae_scale_factor
@@ -44,7 +45,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             raise ValueError(
                 f"UNet sample_size ({self.unet.config.sample_size}) does not match "
                 f"expected size for {image_size}x{image_size} images ({expected_sample_size}). "
-                f"The UNet's sample_size should be image_size/8 due to VAE downsampling."
+                f"The UNet's sample_size should be image_size/{self.vae_scale_factor} due to VAE downsampling."
             )
     
     @torch.no_grad()

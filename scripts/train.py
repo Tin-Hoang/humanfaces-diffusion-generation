@@ -3,7 +3,7 @@
 from datetime import datetime
 import wandb
 import torch
-from diffusers import AutoencoderKL
+from diffusers import AutoencoderKL, VQModel
 
 from diffusion_models.config import parse_args
 from diffusion_models.datasets.dataloader import setup_dataloader, create_attribute_dataloader
@@ -82,10 +82,30 @@ def main():
             input_dim=config.num_attributes,              # 40 binary attributes
             hidden_dim=256                                # Match cross_attention_dim
         )
-    elif config.model == "unet_2":
-        raise NotImplementedError("Unet 2 is not implemented yet")
-    elif config.model == "unet_3":
-        raise NotImplementedError("Unet 3 is not implemented yet")
+    elif config.model == "lc_unet_2":
+        # Latent Conditional UNet
+        from diffusion_models.models.conditional.lc_unet_2 import create_model
+        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
+        # Create model
+        model = create_model(config)
+        # Load VAE
+        vae = VQModel.from_pretrained(
+                "CompVis/ldm-celebahq-256",  # Use CelebA-HQ VQ-VAE
+                subfolder="vqvae", 
+                torch_dtype=torch.float32
+            )
+        vae = vae.to(config.device)
+        # Freeze VAE
+        vae.eval()  # Set to evaluation mode
+        vae.requires_grad_(False)  # Disable gradient calculation
+
+        # Create attribute embedder to project attribute vectors to conditioning dimension
+        attribute_embedder = AttributeEmbedder(
+            input_dim=config.num_attributes,              # 40 binary attributes
+            num_layers=3,
+            hidden_dim=512                                # Match cross_attention_dim
+        )
+        
     else:
         raise ValueError(f"Invalid model type: {config.model}")
     

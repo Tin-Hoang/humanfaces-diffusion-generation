@@ -1,19 +1,17 @@
 """Training loop implementation for diffusion models."""
 
 import os
-from pathlib import Path
-from huggingface_hub import HfFolder, Repository, whoami
 from tqdm.auto import tqdm
 import torch
 import torch.nn.functional as F
 from accelerate import Accelerator
-from diffusers import DDPMPipeline
+from diffusers import DDPMPipeline, VQModel
 import wandb
-from ema_pytorch import EMA
 
 from diffusion_models.utils.generation import generate_grid_images, generate_grid_images_attributes
 from diffusion_models.utils.metrics import generate_and_calculate_fid, generate_and_calculate_fid_attributes
 from diffusion_models.pipelines.attribute_pipeline import AttributeDiffusionPipeline
+from diffusion_models.losses.info_nce import info_nce
 
 
 def train_loop(
@@ -119,17 +117,20 @@ def train_loop(
             if vae is not None:
                 # For conditional model - encode images to latent space
                 with torch.no_grad():
-                    latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 32, 32)
+                    if isinstance(vae, VQModel):
+                        # VQ-VAE
+                        latents = vae.encode(clean_images).latents  # (batch_size, 4, 32, 32)
+                    else:
+                        # AutoencoderKL
+                        latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 32, 32)
                     latents = latents * vae.config.scaling_factor
                 latents = latents.to(clean_images.device)
                 noise = torch.randn_like(latents).to(latents.device)
+                noisy_images = noise_scheduler.add_noise(latents, noise, timesteps)
             else:
                 # For unconditional model - use the original images
                 noise = torch.randn(clean_images.shape).to(clean_images.device)
-                latents = clean_images
-
-            # Add noise to the clean images according to the noise magnitude at each timestep
-            noisy_images = noise_scheduler.add_noise(latents, noise, timesteps)
+                noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
             with accelerator.accumulate(model):
                 # Predict the noise residual
@@ -141,8 +142,26 @@ def train_loop(
                 else:
                     # For unconditional model
                     noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
-                
-                loss = F.mse_loss(noise_pred, noise)
+
+                # Calculate loss
+                if is_conditional and config.use_embedding_loss:
+                    # Squeeze the sequence dimension from encoder_hidden_states
+                    encoder_hidden_states = encoder_hidden_states.squeeze(1)  # Shape: (batch_size, hidden_dim)
+                    # print(f"Using embedding loss")
+                    # print(f"encoder_hidden_states: {encoder_hidden_states.shape}")
+                    # print(f"attributes: {attributes.shape}")
+                    embedding_loss = info_nce(encoder_hidden_states, attributes)
+                    diffusion_loss = F.mse_loss(noise_pred, noise)
+                    # Loss = diffusion loss + lambda * embedding loss
+                    loss = diffusion_loss + config.embedding_loss_lambda * embedding_loss
+                    # print(f"embedding_loss: {embedding_loss.item()}")
+                    # print(f"diffusion_loss: {diffusion_loss.item()}")
+                    # print(f"loss: {loss.item()}")
+                    
+                else:
+                    # Loss = diffusion loss
+                    loss = F.mse_loss(noise_pred, noise)
+
                 accelerator.backward(loss)
 
                 accelerator.clip_grad_norm_(model.parameters(), 1.0)
@@ -165,6 +184,8 @@ def train_loop(
             accelerator.log(logs, step=global_step)
             global_step += 1
 
+            break
+
         # After each epoch you optionally sample some demo images and save the model
         if accelerator.is_main_process:
             if (epoch + 1) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:
@@ -177,7 +198,8 @@ def train_loop(
                             unet=accelerator.unwrap_model(model),
                             vae=vae,
                             scheduler=noise_scheduler,
-                            attribute_embedder=attribute_embedder
+                            attribute_embedder=attribute_embedder,
+                            image_size=config.image_size
                         )
                     else:
                         # Conditional pipeline with direct pixel-space
