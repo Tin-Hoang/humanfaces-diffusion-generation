@@ -105,7 +105,52 @@ def main():
             num_layers=3,
             hidden_dim=256                                # Match cross_attention_dim
         )
-        
+    elif config.model == "lc_unet_3_vqvae":
+        # Latent Conditional UNet
+        from diffusion_models.models.conditional.lc_unet_3_vqvae import create_model
+        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
+        # Create model
+        model = create_model(config)
+        # Load VAE
+        vae = VQModel.from_pretrained(
+                "CompVis/ldm-celebahq-256",  # Use CelebA-HQ VQ-VAE
+                subfolder="vqvae", 
+                torch_dtype=torch.float32
+            )
+        vae = vae.to(config.device)
+        # Freeze VAE
+        vae.eval()  # Set to evaluation mode
+        vae.requires_grad_(False)  # Disable gradient calculation
+
+        # Create attribute embedder to project attribute vectors to conditioning dimension
+        attribute_embedder = AttributeEmbedder(
+            input_dim=config.num_attributes,              # 40 binary attributes
+            num_layers=3,
+            hidden_dim=256                                # Match cross_attention_dim
+        )
+    elif config.model == "lc_unet_4_vqvae":
+        # Latent Conditional UNet
+        from diffusion_models.models.conditional.lc_unet_4_vqvae import create_model
+        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
+        # Create model
+        model = create_model(config)
+        # Load VAE
+        vae = VQModel.from_pretrained(
+                "CompVis/ldm-celebahq-256",  # Use CelebA-HQ VQ-VAE
+                subfolder="vqvae", 
+                torch_dtype=torch.float32
+            )
+        vae = vae.to(config.device)
+        # Freeze VAE
+        vae.eval()  # Set to evaluation mode
+        vae.requires_grad_(False)  # Disable gradient calculation
+
+        # Create attribute embedder to project attribute vectors to conditioning dimension
+        attribute_embedder = AttributeEmbedder(
+            input_dim=config.num_attributes,              # 40 binary attributes
+            num_layers=3,
+            hidden_dim=256                                # Match cross_attention_dim
+        )
     else:
         raise ValueError(f"Invalid model type: {config.model}")
     
