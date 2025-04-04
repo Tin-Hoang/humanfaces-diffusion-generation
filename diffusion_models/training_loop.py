@@ -140,7 +140,12 @@ def train_loop(
                     noise_pred = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states, return_dict=False)[0]
                 else:
                     # For unconditional model
-                    noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+                    # print("noisy_images", noisy_images)
+                    # print("timesteps", timesteps)
+
+                    dummy_class_labels = torch.zeros(noisy_images.shape[0], dtype=torch.long, device=noisy_images.device)
+                    noise_pred = model(noisy_images, timesteps, class_labels=dummy_class_labels, return_dict=False)[0]
+
                 
                 loss = F.mse_loss(noise_pred, noise)
                 accelerator.backward(loss)

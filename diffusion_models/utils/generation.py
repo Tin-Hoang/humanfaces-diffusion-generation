@@ -139,21 +139,36 @@ def generate_grid_images(config: TrainingConfig, epoch: int, pipeline: DDPMPipel
     # Set the random seed for reproducibility
     generator = torch.manual_seed(config.seed)
     
-    # Call the pipeline to generate images
+    # Wrap the UNet forward method to handle timestep and class labels for DiT
+    original_forward = pipeline.unet.forward
+
+    def wrapped_forward(sample, timestep, **kwargs):
+        # Ensure timestep is a 1D tensor: if it's a scalar, expand it for the batch.
+        if timestep.dim() == 0:
+            timestep = timestep.unsqueeze(0).repeat(sample.shape[0])
+        # Inject dummy class labels if they aren’t provided
+        if 'class_labels' not in kwargs:
+            dummy_class_labels = torch.zeros(sample.shape[0], dtype=torch.long, device=sample.device)
+            kwargs['class_labels'] = dummy_class_labels
+        return original_forward(sample, timestep, **kwargs)
+
+    # Replace the forward method in the pipeline’s UNet with our wrapped version.
+    pipeline.unet.forward = wrapped_forward
+
+    # Generate images using the pipeline
     output = pipeline(
         batch_size=config.eval_batch_size,
         generator=generator,
         num_inference_steps=config.num_train_timesteps
     )
     
-    # Check if the output has an 'images' attribute
+    # Retrieve generated images from the output
     if hasattr(output, "images"):
         images = output.images
     elif isinstance(output, tuple):
-        # If output is a tuple, assume the first element is the generated images
         images = output[0]
     else:
-        images = output  # fallback
+        images = output
     
     # Create an image grid from the generated images
     image_grid = make_grid(images, rows=4, cols=4)
@@ -164,6 +179,7 @@ def generate_grid_images(config: TrainingConfig, epoch: int, pipeline: DDPMPipel
     image_grid.save(f"{test_dir}/{epoch:04d}.png")
     
     return images, image_grid
+
 
 
 
