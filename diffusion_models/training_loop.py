@@ -147,17 +147,10 @@ def train_loop(
                 if is_conditional and config.use_embedding_loss:
                     # Squeeze the sequence dimension from encoder_hidden_states
                     encoder_hidden_states = encoder_hidden_states.squeeze(1)  # Shape: (batch_size, hidden_dim)
-                    # print(f"Using embedding loss")
-                    # print(f"encoder_hidden_states: {encoder_hidden_states.shape}")
-                    # print(f"attributes: {attributes.shape}")
                     embedding_loss = info_nce(encoder_hidden_states, attributes)
                     diffusion_loss = F.mse_loss(noise_pred, noise)
                     # Loss = diffusion loss + lambda * embedding loss
                     loss = diffusion_loss + config.embedding_loss_lambda * embedding_loss
-                    # print(f"embedding_loss: {embedding_loss.item()}")
-                    # print(f"diffusion_loss: {diffusion_loss.item()}")
-                    # print(f"loss: {loss.item()}")
-                    
                 else:
                     # Loss = diffusion loss
                     loss = F.mse_loss(noise_pred, noise)
