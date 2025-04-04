@@ -1,10 +1,9 @@
 import torch
-from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDIMScheduler, DDPMScheduler
+from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDIMScheduler, DDPMScheduler, VQModel
 from typing import Optional, Dict, Union, List
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
-import torchvision.transforms as transforms
 
 from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
 
@@ -24,7 +23,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
     def __init__(
         self,
         unet: UNet2DConditionModel,
-        vae: AutoencoderKL,
+        vae: Union[AutoencoderKL, VQModel],
         scheduler: Union[DDIMScheduler, DDPMScheduler],
         attribute_embedder: AttributeEmbedder,
         image_size: int = 256
@@ -106,12 +105,12 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
                 )
             
             # Encode init_image to latent space
-            if hasattr(self.vae, 'encode'):
-                # For AutoencoderKL
-                latents = self.vae.encode(init_image).latent_dist.sample()
-            else:
+            if isinstance(self.vae, VQModel):
                 # For VQModel
                 latents = self.vae.encode(init_image).latents
+            else:
+                # For AutoencoderKL
+                latents = self.vae.encode(init_image).latent_dist.sample()
                 
             # Scale latents
             latents = latents * self.vae.config.scaling_factor
