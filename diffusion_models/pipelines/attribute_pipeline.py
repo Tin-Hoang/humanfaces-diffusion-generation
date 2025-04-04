@@ -5,7 +5,7 @@ from PIL import Image
 import numpy as np
 from tqdm import tqdm
 
-from diffusion_models.models.attribute_embedder import AttributeEmbedder
+from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
 
 
 class AttributeDiffusionPipeline(DiffusionPipeline):

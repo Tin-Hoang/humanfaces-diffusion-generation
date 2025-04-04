@@ -33,42 +33,43 @@ def main():
     for key, value in vars(config).items():
         print(f"\t{key}: {value}")
     print("=" * 80)
-    
+
     # Create model and noise scheduler
     model, attribute_embedder, vae = None, None, None
     if config.model == "unet_notebook":
-        from diffusion_models.models.unet_notebook import create_model
+        from diffusion_models.models.unconditional.unet_notebook import create_model
         model = create_model(config)
     elif config.model == "unet_notebook_r1":
-        from diffusion_models.models.unet_notebook_r1 import create_model
+        from diffusion_models.models.unconditional.unet_notebook_r1 import create_model
         model = create_model(config)
     elif config.model == "unet_notebook_r2":
-        from diffusion_models.models.unet_notebook_r2 import create_model
+        from diffusion_models.models.unconditional.unet_notebook_r2 import create_model
         model = create_model(config)
     elif config.model == "unet_notebook_r3":
-        from diffusion_models.models.unet_notebook_r3 import create_model
+        from diffusion_models.models.unconditional.unet_notebook_r3 import create_model
         model = create_model(config)
     elif config.model == "unet_notebook_r4":
-        from diffusion_models.models.unet_notebook_r4 import create_model
+        from diffusion_models.models.unconditional.unet_notebook_r4 import create_model
         model = create_model(config)
     elif config.model == "unet_notebook_r5":
-        from diffusion_models.models.unet_notebook_r5 import create_model
+        from diffusion_models.models.unconditional.unet_notebook_r5 import create_model
         model = create_model(config)
     elif config.model == "dit_transformer":
         from diffusion_models.models.dit_transformer_d1 import create_model
         model = create_model(config)
-        
-    elif config.model == "conditional_unet":
-        from diffusion_models.models.conditional_unet import create_model
-        from diffusion_models.models.attribute_embedder import AttributeEmbedder
+    elif config.model in ["conditional_unet", "pc_unet_1"]:
+        # Pixel Conditional UNet
+        from diffusion_models.models.conditional.pc_unet_1 import create_model
+        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
         model = create_model(config)
         attribute_embedder = AttributeEmbedder(
             input_dim=config.num_attributes,              # 40 binary attributes
             hidden_dim=256                                # Match cross_attention_dim
         )
-    elif config.model == "latent_conditional_unet":
-        from diffusion_models.models.latent_conditional_unet import create_model
-        from diffusion_models.models.attribute_embedder import AttributeEmbedder
+    elif config.model in ["latent_conditional_unet", "lc_unet_1"]:
+        # Latent Conditional UNet
+        from diffusion_models.models.conditional.lc_unet_1 import create_model
+        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
         # Create model
         model = create_model(config)
         # Load VAE
@@ -153,7 +154,7 @@ def main():
                 shuffle=False
             )
     else:
-        print("\nNo validation directory provided, skipping validation setup")
+        print("[Warning] No validation directory provided, skipping validation during training.")
     
     # Create noise scheduler based on config
     if config.scheduler_type == "ddim":
@@ -175,6 +176,7 @@ def main():
         optimizer = torch.optim.AdamW(
             list(model.parameters()) + list(attribute_embedder.parameters()),
             lr=config.learning_rate,
+            weight_decay=config.weight_decay
         )
     else:
         optimizer = torch.optim.AdamW(
