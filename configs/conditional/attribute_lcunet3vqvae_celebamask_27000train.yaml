@@ -1,0 +1,50 @@
+# Model configuration
+model: lc_unet_3_vqvae
+run_name: attribute_lcunet3vqvae_celebamask_27000train
+
+# Training configuration
+image_size: 256
+train_batch_size: 16
+eval_batch_size: 16
+num_epochs: 100
+learning_rate: 2e-4
+weight_decay: 1e-2
+lr_warmup_steps: 5000
+gradient_accumulation_steps: 1
+seed: 42
+mixed_precision: "no"
+
+# Save and logging configuration
+save_image_epochs: 5
+save_model_epochs: 5
+root_output_dir: /scratch/group_5/diffusion_checkpoints
+
+# Dataset configuration
+train_dir: data/CelebA-HQ-split/train_27000
+val_dir: null
+val_n_samples: null
+dataset_name: celebamask_hq_256_27000train
+num_workers: 4
+
+# Diffusion configuration
+num_train_timesteps: 1000
+scheduler_type: ddpm
+use_embedding_loss: false
+embedding_loss_lambda: null
+
+# WandB configuration
+use_wandb: false
+wandb_project: EEEM068_Diffusion_Models
+wandb_entity: tin-hoang
+
+# Model architecture configuration
+use_ema: false
+use_scale_shift_norm: false
+
+# Conditional generation configuration
+is_conditional: true
+attribute_file: data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt
+num_attributes: 40
+grid_attribute_indices: [35]  # Wearing Hat
+grid_num_samples: 16
+grid_sample_random_remaining_indices: true

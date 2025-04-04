@@ -3,7 +3,7 @@
 from datetime import datetime
 import wandb
 import torch
-from diffusers import AutoencoderKL
+from diffusers import AutoencoderKL, VQModel
 
 from diffusion_models.config import parse_args
 from diffusion_models.datasets.dataloader import setup_dataloader, create_attribute_dataloader
@@ -33,35 +33,40 @@ def main():
     for key, value in vars(config).items():
         print(f"\t{key}: {value}")
     print("=" * 80)
-    
+
     # Create model and noise scheduler
     model, attribute_embedder, vae = None, None, None
     if config.model == "unet_notebook":
-        from diffusion_models.models.unet_notebook import create_model
+        from diffusion_models.models.unconditional.unet_notebook import create_model
         model = create_model(config)
     elif config.model == "unet_notebook_r1":
-        from diffusion_models.models.unet_notebook_r1 import create_model
+        from diffusion_models.models.unconditional.unet_notebook_r1 import create_model
         model = create_model(config)
     elif config.model == "unet_notebook_r2":
-        from diffusion_models.models.unet_notebook_r2 import create_model
+        from diffusion_models.models.unconditional.unet_notebook_r2 import create_model
+        model = create_model(config)
+    elif config.model == "unet_notebook_r3":
+        from diffusion_models.models.unconditional.unet_notebook_r3 import create_model
         model = create_model(config)
     elif config.model == "unet_notebook_r4":
-        from diffusion_models.models.unet_notebook_r4 import create_model
+        from diffusion_models.models.unconditional.unet_notebook_r4 import create_model
         model = create_model(config)
     elif config.model == "unet_notebook_r5":
-        from diffusion_models.models.unet_notebook_r5 import create_model
+        from diffusion_models.models.unconditional.unet_notebook_r5 import create_model
         model = create_model(config)
-    elif config.model == "conditional_unet":
-        from diffusion_models.models.conditional_unet import create_model
-        from diffusion_models.models.attribute_embedder import AttributeEmbedder
+    elif config.model in ["conditional_unet", "pc_unet_1"]:
+        # Pixel Conditional UNet
+        from diffusion_models.models.conditional.pc_unet_1 import create_model
+        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
         model = create_model(config)
         attribute_embedder = AttributeEmbedder(
             input_dim=config.num_attributes,              # 40 binary attributes
             hidden_dim=256                                # Match cross_attention_dim
         )
-    elif config.model == "latent_conditional_unet":
-        from diffusion_models.models.latent_conditional_unet import create_model
-        from diffusion_models.models.attribute_embedder import AttributeEmbedder
+    elif config.model in ["latent_conditional_unet", "lc_unet_1"]:
+        # Latent Conditional UNet
+        from diffusion_models.models.conditional.lc_unet_1 import create_model
+        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
         # Create model
         model = create_model(config)
         # Load VAE
@@ -77,10 +82,75 @@ def main():
             input_dim=config.num_attributes,              # 40 binary attributes
             hidden_dim=256                                # Match cross_attention_dim
         )
-    elif config.model == "unet_2":
-        raise NotImplementedError("Unet 2 is not implemented yet")
-    elif config.model == "unet_3":
-        raise NotImplementedError("Unet 3 is not implemented yet")
+    elif config.model == "lc_unet_2":
+        # Latent Conditional UNet
+        from diffusion_models.models.conditional.lc_unet_2 import create_model
+        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
+        # Create model
+        model = create_model(config)
+        # Load VAE
+        vae = VQModel.from_pretrained(
+                "CompVis/ldm-celebahq-256",  # Use CelebA-HQ VQ-VAE
+                subfolder="vqvae", 
+                torch_dtype=torch.float32
+            )
+        vae = vae.to(config.device)
+        # Freeze VAE
+        vae.eval()  # Set to evaluation mode
+        vae.requires_grad_(False)  # Disable gradient calculation
+
+        # Create attribute embedder to project attribute vectors to conditioning dimension
+        attribute_embedder = AttributeEmbedder(
+            input_dim=config.num_attributes,              # 40 binary attributes
+            num_layers=3,
+            hidden_dim=256                                # Match cross_attention_dim
+        )
+    elif config.model == "lc_unet_3_vqvae":
+        # Latent Conditional UNet
+        from diffusion_models.models.conditional.lc_unet_3_vqvae import create_model
+        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
+        # Create model
+        model = create_model(config)
+        # Load VAE
+        vae = VQModel.from_pretrained(
+                "CompVis/ldm-celebahq-256",  # Use CelebA-HQ VQ-VAE
+                subfolder="vqvae", 
+                torch_dtype=torch.float32
+            )
+        vae = vae.to(config.device)
+        # Freeze VAE
+        vae.eval()  # Set to evaluation mode
+        vae.requires_grad_(False)  # Disable gradient calculation
+
+        # Create attribute embedder to project attribute vectors to conditioning dimension
+        attribute_embedder = AttributeEmbedder(
+            input_dim=config.num_attributes,              # 40 binary attributes
+            num_layers=3,
+            hidden_dim=256                                # Match cross_attention_dim
+        )
+    elif config.model == "lc_unet_4_vqvae":
+        # Latent Conditional UNet
+        from diffusion_models.models.conditional.lc_unet_4_vqvae import create_model
+        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
+        # Create model
+        model = create_model(config)
+        # Load VAE
+        vae = VQModel.from_pretrained(
+                "CompVis/ldm-celebahq-256",  # Use CelebA-HQ VQ-VAE
+                subfolder="vqvae", 
+                torch_dtype=torch.float32
+            )
+        vae = vae.to(config.device)
+        # Freeze VAE
+        vae.eval()  # Set to evaluation mode
+        vae.requires_grad_(False)  # Disable gradient calculation
+
+        # Create attribute embedder to project attribute vectors to conditioning dimension
+        attribute_embedder = AttributeEmbedder(
+            input_dim=config.num_attributes,              # 40 binary attributes
+            num_layers=3,
+            hidden_dim=256                                # Match cross_attention_dim
+        )
     else:
         raise ValueError(f"Invalid model type: {config.model}")
     
@@ -93,6 +163,15 @@ def main():
             project=config.wandb_project,
             name=config.run_name,
             config=config,
+        )
+        wandb.run.log_code(
+            root=".",
+            include_fn=lambda path: (
+                path.endswith(".py") 
+                or path.endswith(".ipynb") 
+                or path.endswith(".sh")
+            ),
+            exclude_fn=lambda path: ".venv" in path  
         )
 
     # Setup training dataset and preprocessing
@@ -137,7 +216,7 @@ def main():
                 shuffle=False
             )
     else:
-        print("\nNo validation directory provided, skipping validation setup")
+        print("[Warning] No validation directory provided, skipping validation during training.")
     
     # Create noise scheduler based on config
     if config.scheduler_type == "ddim":
@@ -159,11 +238,13 @@ def main():
         optimizer = torch.optim.AdamW(
             list(model.parameters()) + list(attribute_embedder.parameters()),
             lr=config.learning_rate,
+            weight_decay=config.weight_decay
         )
     else:
         optimizer = torch.optim.AdamW(
             model.parameters(),
             lr=config.learning_rate,
+            weight_decay=config.weight_decay
         )
 
     lr_scheduler = get_cosine_schedule_with_warmup(

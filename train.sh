@@ -26,8 +26,8 @@ python scripts/train.py \
     --train-dir "data/celeba_hq_split/train" \
     --val-dir "data/celeba_hq_split/test" \
     --val-n-samples 100 \
+    --root-output-dir "/scratch/group_5/diffusion_checkpoints" \
     --num-train-timesteps 1000 \
-    --overwrite-output-dir \
     --seed 42 \
     --use-wandb True \
     --wandb-project "EEEM068_Diffusion_Models" \
