@@ -134,8 +134,8 @@ def create_multi_hot_attributes(
         
         # For each sample, randomly set some of the remaining indices to 1
         for i in range(num_samples):
-            # Randomly choose how many additional indices to set to 1 (max 10)
-            num_additional = min(10, torch.randint(0, len(remaining_indices) + 1, (1,)).item())
+            # Randomly choose how many additional indices to set to 1 (max 5)
+            num_additional = min(5, torch.randint(0, len(remaining_indices) + 1, (1,)).item())
             if num_additional > 0:
                 # Randomly select indices to set to 1
                 selected_indices = torch.randperm(len(remaining_indices))[:num_additional]
