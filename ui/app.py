@@ -4,6 +4,7 @@ import gradio as gr
 from ui.tabs.single_image_tab import create_single_image_tab
 from ui.tabs.batch_tab import create_batch_tab
 from ui.tabs.attribute_tab import create_attribute_tab
+from ui.tabs.image_to_image_tab import create_image_to_image_tab
 
 
 def create_ui():
@@ -16,6 +17,7 @@ def create_ui():
         create_single_image_tab()
         create_batch_tab()
         create_attribute_tab()
+        create_image_to_image_tab()
     
     return demo
 
