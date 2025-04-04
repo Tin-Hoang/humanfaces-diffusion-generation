@@ -1,12 +1,13 @@
 """Image generation utilities for diffusion models."""
 
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Optional, Dict
 import torch
 from PIL import Image
 from tqdm import tqdm
 import os
 from diffusers import DDPMPipeline, DiffusionPipeline
+from diffusion_models.datasets.data_utils import get_inference_transform
 from diffusion_models.pipelines.attribute_pipeline import AttributeDiffusionPipeline
 
 from diffusion_models.config import TrainingConfig
@@ -202,4 +203,65 @@ def generate_grid_images_attributes(
     os.makedirs(test_dir, exist_ok=True)
     image_grid.save(f"{test_dir}/{epoch:04d}.png")
 
-    return images, image_grid 
+    return images, image_grid
+
+
+def generate_image2image_with_attributes(
+    pipeline: AttributeDiffusionPipeline,
+    attributes: torch.Tensor,
+    init_images: List[Image.Image],
+    num_inference_steps: int = 50,
+    strength: float = 0.8,
+    generator: Optional[torch.Generator] = None,
+    output_type: str = "pil",
+    return_dict: bool = True,
+    decode_batch_size: int = 2,
+    eta: float = 0.0,
+) -> Union[Dict[str, Union[List[Image.Image], torch.Tensor]], Union[List[Image.Image], torch.Tensor]]:
+    """Generate images conditioned on attributes and initial images.
+    
+    This function handles the conversion of PIL images to tensors for image-to-image
+    generation with attribute conditioning.
+    
+    Args:
+        pipeline: The attribute diffusion pipeline
+        attributes: Multi-hot tensor of shape (batch_size, 40)
+        init_images: List of PIL images to use as starting point
+        num_inference_steps: Number of denoising steps
+        strength: How much to transform the init_image (1.0 = completely transform)
+        generator: Random number generator for reproducibility
+        output_type: "pil" for PIL images, "tensor" for raw tensors
+        return_dict: Whether to return a dict with the output
+        decode_batch_size: Batch size for VAE decoding to manage memory
+        eta: Parameter between 0 and 1, controlling stochasticity (0 = deterministic DDIM)
+    
+    Returns:
+        Dict or List/Tensor: Generated images in the specified format
+    """
+    # Create transform to resize and normalize images
+    transform = get_inference_transform(pipeline.image_size)
+    
+    # Convert PIL images to tensor
+    init_image_tensor = torch.stack([transform(img) for img in init_images])
+    
+    # Ensure batch size matches
+    batch_size = attributes.size(0)
+    if init_image_tensor.size(0) != batch_size:
+        if init_image_tensor.size(0) == 1:
+            # Repeat single image to match batch size
+            init_image_tensor = init_image_tensor.repeat(batch_size, 1, 1, 1)
+        else:
+            raise ValueError(f"Number of init images ({init_image_tensor.size(0)}) does not match batch size ({batch_size})")
+    
+    # Call the pipeline with the tensor
+    return pipeline(
+        attributes=attributes,
+        num_inference_steps=num_inference_steps,
+        generator=generator,
+        output_type=output_type,
+        return_dict=return_dict,
+        decode_batch_size=decode_batch_size,
+        eta=eta,
+        init_image=init_image_tensor,
+        strength=strength
+    ) 

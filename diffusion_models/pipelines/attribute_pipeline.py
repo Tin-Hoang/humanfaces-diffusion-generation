@@ -1,9 +1,10 @@
 import torch
 from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDIMScheduler, DDPMScheduler
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, List
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
+import torchvision.transforms as transforms
 
 from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
 
@@ -53,26 +54,28 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         attributes: torch.Tensor,
         num_inference_steps: int = 50,
         generator: Optional[torch.Generator] = None,
-        output_type: str = "pil",  # "pil" or "tensor"
+        output_type: str = "pil",
         return_dict: bool = True,
-        decode_batch_size: int = 2,  # Process VAE decoding in smaller batches
-        eta: float = 0.0,  # Parameter between 0 and 1, controlling the amount of noise to add (0 = deterministic)
-    ) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
-        """
-        Generate images conditioned on multi-hot attribute vectors using DDPM or DDIM sampling.
+        decode_batch_size: int = 2,
+        eta: float = 0.0,
+        init_image: Optional[torch.Tensor] = None,
+        strength: float = 0.8,
+    ) -> Union[Dict[str, Union[List[Image.Image], torch.Tensor]], Union[List[Image.Image], torch.Tensor]]:
+        """Generate images conditioned on attributes.
         
         Args:
-            attributes (torch.Tensor): Multi-hot tensor of shape (batch_size, 40).
-            num_inference_steps (int): Number of denoising steps.
-            generator (torch.Generator, optional): Random number generator for reproducibility.
-            output_type (str): "pil" for PIL images, "tensor" for raw tensors.
-            return_dict (bool): Whether to return a dict with the output.
-            decode_batch_size (int): Batch size for VAE decoding to manage memory.
-            eta (float): Parameter between 0 and 1, controlling stochasticity (0 = deterministic DDIM).
-                       Only used with DDIM scheduler.
-        
+            attributes: Multi-hot tensor of shape (batch_size, 40)
+            num_inference_steps: Number of denoising steps
+            generator: Random number generator for reproducibility
+            output_type: "pil" for PIL images, "tensor" for raw tensors
+            return_dict: Whether to return a dict with the output
+            decode_batch_size: Batch size for VAE decoding to manage memory
+            eta: Parameter between 0 and 1, controlling stochasticity (0 = deterministic DDIM)
+            init_image: Optional tensor of shape (batch_size, 3, H, W) to use as starting point
+            strength: How much to transform the init_image (1.0 = completely transform)
+            
         Returns:
-            Dict or Tensor: Generated images in the specified format.
+            Dict or List/Tensor: Generated images in the specified format
         """
         # Validate input
         batch_size = attributes.size(0)
@@ -84,29 +87,73 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         dtype = self.unet.dtype
         attributes = attributes.to(device, dtype)
 
-        # Sample initial noise in latent space
-        latent_size = self.unet.config.sample_size  # Should be image_size/8
-        latents = torch.randn(
-            (batch_size, self.unet.config.in_channels, latent_size, latent_size),
-            device=device,
-            dtype=dtype,
-            generator=generator
-        )
-
         # Set timesteps for sampling
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         timesteps = self.scheduler.timesteps
         
-        # Scale the initial noise
-        latents = latents * self.scheduler.init_noise_sigma
-
+        # Handle init_image if provided
+        if init_image is not None:
+            # Ensure init_image is on the right device and has the right shape
+            init_image = init_image.to(device, dtype)
+            
+            # Resize if needed
+            if init_image.shape[-2:] != (self.image_size, self.image_size):
+                init_image = torch.nn.functional.interpolate(
+                    init_image,
+                    size=(self.image_size, self.image_size),
+                    mode='bicubic',
+                    align_corners=False
+                )
+            
+            # Encode init_image to latent space
+            if hasattr(self.vae, 'encode'):
+                # For AutoencoderKL
+                latents = self.vae.encode(init_image).latent_dist.sample()
+            else:
+                # For VQModel
+                latents = self.vae.encode(init_image).latents
+                
+            # Scale latents
+            latents = latents * self.vae.config.scaling_factor
+            
+            # Calculate noise level based on strength
+            noise_level = int(num_inference_steps * (1 - strength))
+            # Ensure noise_level is within valid range (0 to num_inference_steps-1)
+            noise_level = min(max(0, noise_level), num_inference_steps - 1)
+            
+            # Add noise to latents
+            if generator is not None:
+                # Use torch.randn with generator instead of torch.randn_like with generator
+                noise = torch.randn(latents.shape, device=latents.device, dtype=latents.dtype, generator=generator)
+            else:
+                noise = torch.randn_like(latents)
+            latents = self.scheduler.add_noise(latents, noise, timesteps[noise_level])
+            
+            # Adjust timesteps to start from noise_level
+            timesteps = timesteps[noise_level:]
+            
+            print(f"Using image-to-image generation with strength={strength}")
+            print(f"Starting from timestep {noise_level} out of {num_inference_steps}")
+        else:
+            # Sample initial noise in latent space
+            latent_size = self.unet.config.sample_size  # Should be image_size/8
+            latents = torch.randn(
+                (batch_size, self.unet.config.in_channels, latent_size, latent_size),
+                device=device,
+                dtype=dtype,
+                generator=generator
+            )
+            
+            # Scale the initial noise
+            latents = latents * self.scheduler.init_noise_sigma
+            
         # Project attributes to conditioning input
         cond = self.attribute_embedder(attributes)  # (batch_size, 1, 256)
         
         # Print info and setup progress bar
         scheduler_name = "DDIM" if isinstance(self.scheduler, DDIMScheduler) else "DDPM"
         print(f"\nGenerating {batch_size} {self.image_size}x{self.image_size} images with {scheduler_name} sampling")
-        print(f"Using {num_inference_steps} inference steps")
+        print(f"Using {len(timesteps)} inference steps")
         if isinstance(self.scheduler, DDIMScheduler):
             print(f"eta={eta} (stochasticity parameter)")
         print(f"Attribute values: {attributes[0].cpu().numpy()}")  # Print first sample's attributes
