@@ -114,11 +114,18 @@ def main():
         raise ValueError(f"Invalid scheduler type: {config.scheduler_type}")
 
     # Setup optimizer and learning rate scheduler
-    params_to_optimize = [list(model.parameters())]
+    params_to_optimize = []
+    
+    # Add model parameters
+    params_to_optimize.extend(model.parameters())
+    
+    # Add attribute embedder parameters if it exists
     if attribute_embedder:
-        params_to_optimize.append(list(attribute_embedder.parameters()))
+        params_to_optimize.extend(attribute_embedder.parameters())
+    
+    # Add VAE parameters if it exists and finetune_vae is True
     if vae and config.finetune_vae:
-        params_to_optimize.append(list(vae.parameters()))
+        params_to_optimize.extend(vae.parameters())
 
     optimizer = torch.optim.AdamW(
         params=params_to_optimize,
