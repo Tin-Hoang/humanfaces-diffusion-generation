@@ -101,7 +101,8 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         latents = latents * self.scheduler.init_noise_sigma
 
         # Project attributes to conditioning input
-        cond = self.attribute_embedder(attributes)  # (batch_size, 1, 256)
+        with torch.no_grad():
+            cond = self.attribute_embedder(attributes)  # (batch_size, 1, 256)
         
         # Print info and setup progress bar
         scheduler_name = "DDIM" if isinstance(self.scheduler, DDIMScheduler) else "DDPM"
@@ -118,7 +119,8 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
                 t = t.to(device)
                 
                 # Predict noise residual
-                noise_pred = self.unet(latents, t, encoder_hidden_states=cond).sample
+                with torch.no_grad():
+                    noise_pred = self.unet(latents, t, encoder_hidden_states=cond).sample
                 
                 # Step with appropriate scheduler
                 if isinstance(self.scheduler, DDIMScheduler):
@@ -157,10 +159,11 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             # Free memory before decoding
             torch.cuda.empty_cache()
             
-            # Decode batch
-            batch_images = self.vae.decode(batch_latents).sample
-            batch_images = (batch_images / 2 + 0.5).clamp(0, 1)  # Rescale from [-1, 1] to [0, 1]
-            
+            with torch.no_grad():
+                # Decode batch
+                batch_images = self.vae.decode(batch_latents).sample
+                batch_images = (batch_images / 2 + 0.5).clamp(0, 1)  # Rescale from [-1, 1] to [0, 1]
+
             # Convert to CPU immediately to free GPU memory
             if output_type == "pil":
                 for img in batch_images:

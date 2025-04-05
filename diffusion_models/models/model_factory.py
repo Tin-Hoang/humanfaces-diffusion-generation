@@ -61,6 +61,10 @@ class ModelFactory:
                 torch_dtype=torch.float32
             )
             vae = vae.to(config.device)
+            if not config.finetune_vae:
+                # Freeze VAE
+                vae.eval()  # Set to evaluation mode
+                vae.requires_grad_(False)  # Disable gradient calculation
             attribute_embedder = AttributeEmbedder(
                 input_dim=config.num_attributes,  # 40 binary attributes
                 hidden_dim=256                    # Match cross_attention_dim
@@ -76,9 +80,10 @@ class ModelFactory:
                 torch_dtype=torch.float32
             )
             vae = vae.to(config.device)
-            # Freeze VAE
-            vae.eval()  # Set to evaluation mode
-            vae.requires_grad_(False)  # Disable gradient calculation
+            if not config.finetune_vae:
+                # Freeze VAE
+                vae.eval()  # Set to evaluation mode
+                vae.requires_grad_(False)  # Disable gradient calculation
             attribute_embedder = AttributeEmbedder(
                 input_dim=config.num_attributes,  # 40 binary attributes
                 num_layers=3,
@@ -95,9 +100,10 @@ class ModelFactory:
                 torch_dtype=torch.float32
             )
             vae = vae.to(config.device)
-            # Freeze VAE
-            vae.eval()  # Set to evaluation mode
-            vae.requires_grad_(False)  # Disable gradient calculation
+            if not config.finetune_vae:
+                # Freeze VAE
+                vae.eval()  # Set to evaluation mode
+                vae.requires_grad_(False)  # Disable gradient calculation
             attribute_embedder = AttributeEmbedder(
                 input_dim=config.num_attributes,  # 40 binary attributes
                 num_layers=3,
@@ -114,9 +120,10 @@ class ModelFactory:
                 torch_dtype=torch.float32
             )
             vae = vae.to(config.device)
-            # Freeze VAE
-            vae.eval()  # Set to evaluation mode
-            vae.requires_grad_(False)  # Disable gradient calculation
+            if not config.finetune_vae:
+                # Freeze VAE
+                vae.eval()  # Set to evaluation mode
+                vae.requires_grad_(False)  # Disable gradient calculation
             attribute_embedder = AttributeEmbedder(
                 input_dim=config.num_attributes,  # 40 binary attributes
                 num_layers=3,
@@ -133,9 +140,10 @@ class ModelFactory:
                 torch_dtype=torch.float32
             )
             vae = vae.to(config.device)
-            # Freeze VAE
-            vae.eval()  # Set to evaluation mode
-            vae.requires_grad_(False)  # Disable gradient calculation
+            if not config.finetune_vae:
+                # Freeze VAE
+                vae.eval()  # Set to evaluation mode
+                vae.requires_grad_(False)  # Disable gradient calculation
             attribute_embedder = AttributeEmbedder(
                 input_dim=config.num_attributes,  # 40 binary attributes
                 num_layers=3,

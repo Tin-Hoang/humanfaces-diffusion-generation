@@ -114,19 +114,17 @@ def main():
         raise ValueError(f"Invalid scheduler type: {config.scheduler_type}")
 
     # Setup optimizer and learning rate scheduler
-    if config.is_conditional and attribute_embedder is not None:
-        # Include attribute embedder parameters in optimization
-        optimizer = torch.optim.AdamW(
-            list(model.parameters()) + list(attribute_embedder.parameters()),
-            lr=config.learning_rate,
-            weight_decay=config.weight_decay
-        )
-    else:
-        optimizer = torch.optim.AdamW(
-            model.parameters(),
-            lr=config.learning_rate,
-            weight_decay=config.weight_decay
-        )
+    params_to_optimize = [list(model.parameters())]
+    if attribute_embedder:
+        params_to_optimize.append(list(attribute_embedder.parameters()))
+    if vae and config.finetune_vae:
+        params_to_optimize.append(list(vae.parameters()))
+
+    optimizer = torch.optim.AdamW(
+        params=params_to_optimize,
+        lr=config.learning_rate,
+        weight_decay=config.weight_decay
+    )
 
     lr_scheduler = get_cosine_schedule_with_warmup(
         optimizer=optimizer,
