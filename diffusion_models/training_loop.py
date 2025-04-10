@@ -15,13 +15,13 @@ from diffusion_models.losses.info_nce import info_nce
 
 
 def train_loop(
-    config, 
-    model, 
-    noise_scheduler, 
-    optimizer, 
-    train_dataloader, 
-    lr_scheduler=None, 
-    val_dataloader=None, 
+    config,
+    model,
+    noise_scheduler,
+    optimizer,
+    train_dataloader,
+    lr_scheduler=None,
+    val_dataloader=None,
     preprocess=None,
     is_conditional=False,
     grid_attributes=None,
@@ -31,7 +31,7 @@ def train_loop(
     ema=None
 ):
     """Main training loop.
-    
+
     Args:
         config: Training configuration
         model: The UNet model to train
@@ -83,7 +83,7 @@ def train_loop(
         )
     if vae:
         vae = accelerator.prepare(vae)
-    
+
     if val_dataloader:
         val_dataloader = accelerator.prepare(val_dataloader)
 
@@ -96,14 +96,18 @@ def train_loop(
     for epoch in range(config.num_epochs):
         progress_bar = tqdm(total=len(train_dataloader), disable=not accelerator.is_local_main_process)
         progress_bar.set_description(f"Epoch {epoch}")
-
+        if vae:
+            if config.finetune_vae:
+                vae.train()
+            else:
+                vae.eval()
         for step, batch in enumerate(train_dataloader):
             # Handle both conditional and unconditional cases
             if is_conditional:
                 clean_images, attributes = batch
             else:
                 clean_images = batch["images"]
-            
+
             # Sample noise to add to the images
             bs = clean_images.shape[0]
 
@@ -114,13 +118,22 @@ def train_loop(
 
             if vae:
                 # For conditional model - encode images to latent space
-                if isinstance(vae, VQModel):
-                    # VQ-VAE
-                    latents = vae.encode(clean_images).latents  # (batch_size, 4, 32, 32)
+                if not config.finetune_vae:
+                    # If we're not training the VAE, don't compute gradients
+                    with torch.no_grad():
+                        if isinstance(vae, VQModel):
+                            latents = vae.encode(clean_images).latents  # (batch_size, 4, 32, 32)
+                        else:
+                            latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 32, 32)
+                            latents = latents * vae.config.scaling_factor
                 else:
-                    # AutoencoderKL
-                    latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 32, 32)
-                    latents = latents * vae.config.scaling_factor
+                    # If we're tuning the VAE, compute gradients normally
+                    if isinstance(vae, VQModel):
+                        latents = vae.encode(clean_images).latents
+                    else:
+                        latents = vae.encode(clean_images).latent_dist.sample()
+                        latents = latents * vae.config.scaling_factor
+
                 latents = latents.to(clean_images.device)
                 noise = torch.randn_like(latents).to(latents.device)
                 noisy_images = noise_scheduler.add_noise(latents, noise, timesteps)
@@ -180,23 +193,23 @@ def train_loop(
                 # Generate and save sample images
                 if is_conditional:
                     # Create a pipeline for visualization
-                    if vae is not None:
+                    if vae:
                         # Create conditional pipeline with VAE for latent conditioning
                         pipeline = AttributeDiffusionPipeline(
                             unet=accelerator.unwrap_model(model),
-                            vae=vae,
+                            vae=accelerator.unwrap_model(vae),
                             scheduler=noise_scheduler,
-                            attribute_embedder=attribute_embedder,
+                            attribute_embedder=accelerator.unwrap_model(attribute_embedder),
                             image_size=config.image_size
                         )
                     else:
                         # Conditional pipeline with direct pixel-space
                         raise NotImplementedError("Pixel-space conditional generation not supported yet")
-                    
+
                     # Move grid attributes to correct device
                     grid_attributes = grid_attributes.to(accelerator.device)
                     _, image_grid = generate_grid_images_attributes(
-                        config, epoch, pipeline, 
+                        config, epoch, pipeline,
                         attributes=grid_attributes
                     )
                 else:
@@ -211,14 +224,14 @@ def train_loop(
                 # Log grid images to WandB
                 if config.use_wandb:
                     wandb.log({
-                        "validation/grid_images": wandb.Image(image_grid), 
+                        "validation/grid_images": wandb.Image(image_grid),
                         "validation/epoch": epoch
                     })
 
                 # Calculate FID if validation dataset is available
                 if val_dataloader:
                     print(f"Calculating FID score at epoch {epoch + 1}...")
-                    
+
                     if is_conditional and val_attributes is not None:
                         # Move validation attributes to correct device
                         val_attributes = val_attributes.to(accelerator.device)
@@ -243,11 +256,11 @@ def train_loop(
                             num_samples=config.val_n_samples
                         )
                     print(f"FID Score: {fid_score:.2f}")
-                    
+
                     # Log to WandB
                     if config.use_wandb:
                         wandb.log({"validation/fid_score": fid_score})
-                        
+
                     # Save best model if FID score improves
                     if fid_score < best_fid_score:
                         best_fid_score = fid_score
