@@ -4,26 +4,35 @@ from diffusers import DiTTransformer2DModel
 from diffusion_models.config import TrainingConfig
 
 def create_model(config: TrainingConfig) -> DiTTransformer2DModel:
-    """Create and return a revised DiT Transformer model for CelebA-HQ with improved generalization."""
-    model = DiTTransformer2DModel(
-        sample_size=config.image_size,      # e.g., 256 for CelebA-HQ
+    """
+    DiT-Base variant for diffusion modeling on 128x128 images.
+
+    Configuration:
+      - Patch Size: 4 (reduces sequence length to 32x32 = 1024 patches)
+      - Number of Layers: 6 (sufficient depth without excessive compute)
+      - Attention Heads: 8 with head dimension 64 (total hidden size 512)
+      - Dropout: 0.1 (balanced regularization)
+      - Normalization: Group normalization with 32 groups and adaptive normalization
+    """
+    return DiTTransformer2DModel(
+        sample_size=config.image_size,      # 128
         in_channels=3,                      # RGB input
         out_channels=3,                     # RGB output
-        patch_size=2,                       # 2x2 patches
-        num_layers=4,                       # Increased depth for hierarchical feature extraction
-        num_attention_heads=8,              # Keeping 8 heads
-        attention_head_dim=64,              # Reduced dimension per head -> effective hidden size 512
-        dropout=0.2,                        # Dropout to help regularize the model
-        norm_num_groups=32,                 # Groups for group normalization (adjustable)
+        patch_size=4,                       # Reduces sequence length (fewer patches than patch_size=2)
+        num_layers=6,                       # Balanced depth
+        num_attention_heads=8,              # Standard for DiT-Base
+        attention_head_dim=64,              # Each head with 64 dims; total hidden size = 512
+        dropout=0.1,                        # Moderate dropout for regularization
+        norm_num_groups=32,                 # Group normalization with 32 groups
         attention_bias=True,                # Use bias in attention layers
-        activation_fn="gelu-approximate",   # Activation function
-        num_embeds_ada_norm=1000,           # AdaLayerNorm embeddings (if used)
-        upcast_attention=False,             # Keep as is to control memory usage
-        norm_type="ada_norm_zero",          # Consider testing with "layer" if needed
-        norm_elementwise_affine=False,      # No affine parameters in normalization layers
-        norm_eps=1e-5,                      # Epsilon for normalization stability
+        activation_fn="gelu-approximate",   # Efficient GELU approximation
+        num_embeds_ada_norm=1000,           # Number of embeddings for adaptive normalization
+        upcast_attention=False,             # Optimize memory usage
+        norm_type="ada_norm_zero",          # Adaptive normalization variant
+        norm_elementwise_affine=False,      # No extra affine parameters in normalization layers
+        norm_eps=1e-5,                      # Small epsilon for numerical stability
     )
-    return model
+
 
 
 # def create_model(config: TrainingConfig) -> DiTTransformer2DModel:

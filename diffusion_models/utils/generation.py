@@ -146,6 +146,7 @@ def generate_grid_images(config: TrainingConfig, epoch: int, pipeline: DDPMPipel
         # Ensure timestep is a 1D tensor: if it's a scalar, expand it for the batch.
         if timestep.dim() == 0:
             timestep = timestep.unsqueeze(0).repeat(sample.shape[0])
+        timestep = timestep.to(sample.device)
         # Inject dummy class labels if they aren’t provided
         if 'class_labels' not in kwargs:
             dummy_class_labels = torch.zeros(sample.shape[0], dtype=torch.long, device=sample.device)
