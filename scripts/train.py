@@ -20,11 +20,11 @@ from diffusion_models.models.model_factory import ModelFactory
 def main():
     # Parse command line arguments and get config
     config = parse_args()
-    
+
     # Set device
     config.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"\nUsing device: {config.device}")
-    
+
     # Print config
     print("=" * 80)
     print("Training Configuration:")
@@ -34,7 +34,7 @@ def main():
 
     # Create model and noise scheduler using the model factory
     model, attribute_embedder, vae = ModelFactory.create_model(config)
-    
+
     ema = EMA(model, beta=0.9999, update_after_step=0, update_every=1) if config.use_ema else None
 
     if config.use_wandb:
@@ -48,11 +48,15 @@ def main():
         wandb.run.log_code(
             root=".",
             include_fn=lambda path: (
-                path.endswith(".py") 
-                or path.endswith(".ipynb") 
+                path.endswith(".py")
+                or path.endswith(".ipynb")
                 or path.endswith(".sh")
             ),
-            exclude_fn=lambda path: ".venv" in path  
+            exclude_fn=lambda path: (".venv" in path
+                                     or ".git" in path
+                                     or "checkpoints/" in path
+                                     or "outputs/" in path
+                                     or "data/" in path)
         )
 
     # Setup training dataset and preprocessing
@@ -76,7 +80,7 @@ def main():
             image_size=config.image_size,
             shuffle=True
         )
-    
+
     # Setup validation dataset if val_dir is provided
     val_dataloader = None
     if config.val_dir:
@@ -98,7 +102,7 @@ def main():
             )
     else:
         print("[Warning] No validation directory provided, skipping validation during training.")
-    
+
     # Create noise scheduler based on config
     if config.scheduler_type == "ddim":
         noise_scheduler = create_ddim_scheduler(
@@ -115,14 +119,12 @@ def main():
 
     # Setup optimizer and learning rate scheduler
     params_to_optimize = []
-    
+
     # Add model parameters
     params_to_optimize.extend(model.parameters())
-    
     # Add attribute embedder parameters if it exists
     if attribute_embedder:
         params_to_optimize.extend(attribute_embedder.parameters())
-    
     # Add VAE parameters if it exists and finetune_vae is True
     if vae and config.finetune_vae:
         params_to_optimize.extend(vae.parameters())
@@ -157,7 +159,7 @@ def main():
                 num_samples=config.grid_num_samples,
                 num_attributes=config.num_attributes,
             )
-        
+
         # Create validation attributes
         if val_dataloader is not None:
             val_attributes = create_sample_attributes(
@@ -174,7 +176,7 @@ def main():
         print("grid_attributes shape: ", grid_attributes.shape)
         # sample first item
         print("grid_attributes first item: ", grid_attributes[0])
-    
+
     # Run training loop with attribute vectors and embedder
     train_loop(
         config=config,
