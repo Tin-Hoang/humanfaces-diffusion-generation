@@ -125,14 +125,14 @@ def train_loop(
                             latents = vae.encode(clean_images).latents  # (batch_size, 4, 32, 32)
                         else:
                             latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 32, 32)
-                            latents = latents * vae.config.scaling_factor
+                        latents = latents * vae.config.scaling_factor
                 else:
                     # If we're tuning the VAE, compute gradients normally
                     if isinstance(vae, VQModel):
                         latents = vae.encode(clean_images).latents
                     else:
                         latents = vae.encode(clean_images).latent_dist.sample()
-                        latents = latents * vae.config.scaling_factor
+                    latents = latents * vae.config.scaling_factor
 
                 latents = latents.to(clean_images.device)
                 noise = torch.randn_like(latents).to(latents.device)
