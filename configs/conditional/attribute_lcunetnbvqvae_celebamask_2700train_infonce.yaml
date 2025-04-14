@@ -9,8 +9,8 @@ eval_batch_size: 16
 num_epochs: 2000
 learning_rate: 2e-4
 weight_decay: 1e-2
-lr_warmup_steps: 5000
-gradient_accumulation_steps: 2
+lr_warmup_steps: 8400  # Updated to be 5% of total training steps (84 batches * 2000 epochs * 0.05)
+gradient_accumulation_steps: 1
 seed: 42
 mixed_precision: "no"
 
