@@ -1,6 +1,6 @@
 # Model configuration
 model: lc_unet_nb_vqvae
-run_name: attribute_lcunetnbvqvae_celebamask_2700train_infonce
+run_name: attribute_lcunetnbvqvae_celebamask_2700train
 
 # Training configuration
 image_size: 256
