@@ -170,6 +170,26 @@ class ModelFactory:
                 hidden_dim=256                    # Match cross_attention_dim
             )
 
+        # Latent Conditional models with VQModel
+        elif config.model == "lc_unet_5_vqvae":
+            from diffusion_models.models.conditional.lc_unet_5_vqvae import create_model
+            model = create_model(config)
+            vae = VQModel.from_pretrained(
+                "CompVis/ldm-celebahq-256",  # Use CelebA-HQ VQ-VAE
+                subfolder="vqvae",
+                torch_dtype=torch.float32
+            )
+            vae = vae.to(config.device)
+            if not config.finetune_vae:
+                # Freeze VAE
+                vae.eval()  # Set to evaluation mode
+                vae.requires_grad_(False)  # Disable gradient calculation
+            attribute_embedder = AttributeEmbedder(
+                input_dim=config.num_attributes,  # 40 binary attributes
+                num_layers=3,
+                hidden_dim=256                    # Match cross_attention_dim
+            )
+
         else:
             raise ValueError(f"Invalid model type: {config.model}")
 
