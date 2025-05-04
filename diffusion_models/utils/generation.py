@@ -42,6 +42,23 @@ def generate_images(
     # Generate images
     generator = torch.Generator(device=device).manual_seed(seed)
     
+    # Wrap the UNet forward method to handle timestep and class labels for DiT
+    original_forward = pipeline.unet.forward
+
+    def wrapped_forward(sample, timestep, **kwargs):
+        # Ensure timestep is a 1D tensor: if it's a scalar, expand it for the batch.
+        if timestep.dim() == 0:
+            timestep = timestep.unsqueeze(0).repeat(sample.shape[0])
+        timestep = timestep.to(sample.device)
+        # Inject dummy class labels if they aren’t provided
+        if 'class_labels' not in kwargs:
+            dummy_class_labels = torch.zeros(sample.shape[0], dtype=torch.long, device=sample.device)
+            kwargs['class_labels'] = dummy_class_labels
+        return original_forward(sample, timestep, **kwargs)
+
+    # Replace the forward method in the pipeline’s UNet with our wrapped version.
+    pipeline.unet.forward = wrapped_forward
+
     # Use provided initial noise if available, otherwise use random noise
     if initial_noise is not None:
         # Use the scheduler's step method directly with the initial noise
