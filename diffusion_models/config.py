@@ -1,5 +1,4 @@
 """Configuration for training diffusion models."""
-
 import os
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -7,7 +6,6 @@ import argparse
 from typing import Optional, List
 import torch
 from omegaconf import OmegaConf, DictConfig
-
 
 def str2bool(v):
     """Convert string to boolean."""
@@ -20,19 +18,18 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
-
 @dataclass
 class TrainingConfig:
     """Configuration for training diffusion models."""
     
     # Model configuration
-    model: str = "unet_notebook"  # Type of model to use (e.g., "unet_notebook")
+    model: str = "unet_notebook"  # Options include "unet_notebook", "dit_transformer", etc.
     
     # Training configuration
-    run_name: Optional[str] = None  # Name for the run. To be used for WandB run name and output directory name
-    image_size: int = 256  # the generated image resolution
+    run_name: Optional[str] = None  # Run name for logging and output directory naming
+    image_size: int = 256  # Generated image resolution
     train_batch_size: int = 16
-    eval_batch_size: int = 16  # how many images to sample during evaluation
+    eval_batch_size: int = 16  # Number of images to sample during evaluation
     num_epochs: int = 100
     gradient_accumulation_steps: int = 1
     learning_rate: float = 1e-4
@@ -41,15 +38,15 @@ class TrainingConfig:
     save_image_epochs: int = 5
     save_model_epochs: int = 5
     num_workers: int = 4
-    mixed_precision: str = "fp16"  # `no` for float32, `fp16` for automatic mixed precision
+    mixed_precision: str = "fp16"  # "no" for float32, "fp16" for automatic mixed precision
     root_output_dir: str = "checkpoints"
-    output_dir: Optional[str] = None  # Will be set in parse_args
-    dataset_name: str = "celeba_hq_128_2700train"  # Customize the dataset name to note the dataset used
-    train_dir: str = "data/celeba_hq_split/train"  # Add train directory
-    val_dir: str = None  # Add validation directory
-    val_n_samples: int = 100  # Number of samples to generate for FID calculation
-    num_train_timesteps: int = 1000  # num_train_timesteps for DDPM scheduler and pipeline inference
-    scheduler_type: str = "ddpm"  # "ddpm" or "ddim"
+    output_dir: Optional[str] = None  # Will be set in parse_args if not provided
+    dataset_name: str = "celeba_hq_128_2700train"
+    train_dir: str = "data/celeba_hq_split/train"
+    val_dir: str = None  # Validation directory
+    val_n_samples: int = 100  # Number of validation samples (e.g., for FID)
+    num_train_timesteps: int = 1000  # Diffusion timesteps for the scheduler/inference
+    scheduler_type: str = "ddpm"  # Options: "ddpm" or "ddim"
 
     # Conditional generation parameters
     sample_attributes: Optional[torch.Tensor] = None  # Attribute vectors for sample generation
@@ -59,37 +56,42 @@ class TrainingConfig:
     use_embedding_loss: bool = False  # Whether to calculate embedding loss
     embedding_loss_lambda: float = 1.0  # Lambda for embedding loss
 
-    # Grid visualization parameters
-    grid_attribute_indices: Optional[List[int]] = None  # Specific attributes for grid visualization
-    grid_num_samples: int = 16  # Number of samples in the visualization grid
-    grid_sample_random_remaining_indices: bool = False  # Whether to randomly sample remaining indices for grid visualization
 
-    overwrite_output_dir: bool = True  # overwrite the old model when re-running the notebook
+    # Grid visualization parameters
+    grid_attribute_indices: Optional[List[int]] = None
+    grid_num_samples: int = 16
+    grid_sample_random_remaining_indices: bool = False
+
+    overwrite_output_dir: bool = True
     seed: int = 42
-    use_wandb: bool = True  # Whether to use WandB logging
+    use_wandb: bool = True
     wandb_project: Optional[str] = "EEEM068_Diffusion_Models"
     wandb_entity: Optional[str] = "tin-hoang"
     use_ema: bool = False
     use_scale_shift_norm: bool = False
 
+    # Transformer-specific parameters (only used if model == "dit_transformer")
+    embed_dim: int = 512
+    depth: int = 12
+    num_heads: int = 8
+    patch_size: int = 16
+    img_size: int = 256
+
     def __post_init__(self):
-        """Set default output_dir if not provided."""
+        """Set default output_dir and validate paths."""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-        # Set run_name if not provided
         if not self.run_name:
             self.run_name = f"{self.dataset_name}"
             print(f"No run_name provided, using dataset name: {self.run_name}")
         # Always add timestamp to run_name
         self.run_name += f"_{timestamp}"
     
-        # Set output_dir if not provided
         if not self.root_output_dir:
             self.root_output_dir = "checkpoints"
         
-        # If the root_output_dir is on scratch, make the directory and set the permissions
+        # For example, if running on scratch
         if self.root_output_dir.startswith("/scratch/group_5"):
-            # Change mode of root_output_dir to 700
             os.makedirs("/scratch/group_5", exist_ok=True)
             os.chmod("/scratch/group_5", 0o700)
 
@@ -97,35 +99,29 @@ class TrainingConfig:
             self.output_dir = os.path.join(self.root_output_dir, self.run_name)
             print(f"No output_dir provided, using default: {self.output_dir}")
 
-        # train_dir could be from Hugging Face or local directory
+        # Verify training directory exists
         if not self.train_dir or not os.path.exists(self.train_dir):
             raise FileNotFoundError(f"Training directory not found: {self.train_dir}")
 
         if not self.val_dir or not os.path.exists(self.val_dir):
-            # Warn the user that the validation directory does not exist
             print(f"Warning: Validation directory not inputted or not found: {self.val_dir}")
             
-        # Set up conditional generation parameters
+        # Setup conditional generation parameters
         if self.is_conditional:
             if not self.attribute_file or not os.path.exists(self.attribute_file):
                 raise FileNotFoundError(f"Attribute file not found: {self.attribute_file}")
             if self.grid_attribute_indices is None:
                 print("No grid_attribute_indices provided, using default: [20] for Male attribute")
-                self.grid_attribute_indices = [20]  # Just use Male attribute for clearer results
-
+                self.grid_attribute_indices = [20]
 
 def parse_args() -> TrainingConfig:
-    """Support CLI, YAML, and override-style configs with full compatibility."""
+    """Parse CLI args, YAML config, and override values to create a TrainingConfig."""
     parser = argparse.ArgumentParser(description="Train a diffusion model")
-
-    # Special args for YAML and overrides
     parser.add_argument("--config", type=str, help="Path to YAML config file")
     parser.add_argument("--override", nargs=argparse.REMAINDER, help="Overrides in key=value format")
 
-    # === Manually defined CLI args (exactly as you had) ===
-    defaults = {field: TrainingConfig.__dataclass_fields__[field].default
-            for field in TrainingConfig.__dataclass_fields__}
-
+    # Create defaults from the TrainingConfig dataclass
+    defaults = {field: TrainingConfig.__dataclass_fields__[field].default for field in TrainingConfig.__dataclass_fields__}
     defaults["output_dir"] = None
     defaults["run_name"] = None
 
@@ -201,27 +197,28 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"],
                     help="Number of diffusion timesteps used during training")
 
-
-
     args = parser.parse_args()
 
     # Step 1: Start with CLI args
     cli_config = vars(args)
 
-    # Step 2: Load YAML config if provided
+    # Step 2: Load YAML config if provided (CLI args override YAML)
     if args.config:
         yaml_config = OmegaConf.load(args.config)
-        cli_config = {**cli_config, **yaml_config}  # CLI first, YAML second
+        cli_config = {**cli_config, **yaml_config}
 
-    
-    # Step 3: Apply any CLI override key=value
+    # Step 3: Apply any CLI override key=value pairs
     if args.override:
         override_cfg = OmegaConf.from_dotlist(args.override)
         cli_config = OmegaConf.merge(cli_config, override_cfg)
 
-    # Remove non-model args (helper-only)
+    # Remove helper-only keys
     cli_config.pop("config", None)
     cli_config.pop("override", None)
 
     return TrainingConfig(**cli_config)
 
+if __name__ == "__main__":
+    config = parse_args()
+    print("Loaded configuration:")
+    print(config)
