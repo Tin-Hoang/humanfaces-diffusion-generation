@@ -81,7 +81,7 @@ def train_loop(
         model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
             model, optimizer, train_dataloader, lr_scheduler
         )
-    if vae is not None:
+    if vae:
         vae = accelerator.prepare(vae)
 
     if val_dataloader:
@@ -96,9 +96,11 @@ def train_loop(
     for epoch in range(config.num_epochs):
         progress_bar = tqdm(total=len(train_dataloader), disable=not accelerator.is_local_main_process)
         progress_bar.set_description(f"Epoch {epoch}")
-        if vae is not None:
-            vae.eval()  # VAE is pretrained, no training needed
-
+        if vae:
+            if config.finetune_vae:
+                vae.train()
+            else:
+                vae.eval()
         for step, batch in enumerate(train_dataloader):
             # Handle both conditional and unconditional cases
             if is_conditional:
@@ -114,16 +116,24 @@ def train_loop(
                 0, noise_scheduler.config.num_train_timesteps, (bs,), device=clean_images.device
             ).long()
 
-            if vae is not None:
+            if vae:
                 # For conditional model - encode images to latent space
-                with torch.no_grad():
+                if not config.finetune_vae:
+                    # If we're not training the VAE, don't compute gradients
+                    with torch.no_grad():
+                        if isinstance(vae, VQModel):
+                            latents = vae.encode(clean_images).latents  # (batch_size, 4, 32, 32)
+                        else:
+                            latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 32, 32)
+                        latents = latents * vae.config.scaling_factor
+                else:
+                    # If we're tuning the VAE, compute gradients normally
                     if isinstance(vae, VQModel):
-                        # VQ-VAE
-                        latents = vae.encode(clean_images).latents  # (batch_size, 4, 32, 32)
+                        latents = vae.encode(clean_images).latents
                     else:
-                        # AutoencoderKL
-                        latents = vae.encode(clean_images).latent_dist.sample()  # (batch_size, 4, 32, 32)
+                        latents = vae.encode(clean_images).latent_dist.sample()
                     latents = latents * vae.config.scaling_factor
+
                 latents = latents.to(clean_images.device)
                 noise = torch.randn_like(latents).to(latents.device)
                 noisy_images = noise_scheduler.add_noise(latents, noise, timesteps)
@@ -189,13 +199,13 @@ def train_loop(
                 # Generate and save sample images
                 if is_conditional:
                     # Create a pipeline for visualization
-                    if vae is not None:
+                    if vae:
                         # Create conditional pipeline with VAE for latent conditioning
                         pipeline = AttributeDiffusionPipeline(
                             unet=accelerator.unwrap_model(model),
-                            vae=vae,
+                            vae=accelerator.unwrap_model(vae),
                             scheduler=noise_scheduler,
-                            attribute_embedder=attribute_embedder,
+                            attribute_embedder=accelerator.unwrap_model(attribute_embedder),
                             image_size=config.image_size
                         )
                     else:

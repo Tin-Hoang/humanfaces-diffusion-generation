@@ -58,6 +58,7 @@ class TrainingConfig:
     num_attributes: int = 40  # Number of attributes (e.g., 40 for CelebA)
     use_embedding_loss: bool = False  # Whether to calculate embedding loss
     embedding_loss_lambda: float = 1.0  # Lambda for embedding loss
+    finetune_vae: bool = False  # Whether to finetune the VAE
 
     # Grid visualization parameters
     grid_attribute_indices: Optional[List[int]] = None  # Specific attributes for grid visualization
@@ -207,7 +208,8 @@ def parse_args() -> TrainingConfig:
                     help="Noise scheduler type to use")
     parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"],
                     help="Number of diffusion timesteps used during training")
-
+    parser.add_argument("--finetune-vae", type=str2bool, default=defaults["finetune_vae"],
+                    help="Enable finetuning of the VAE")
 
 
     args = parser.parse_args()
