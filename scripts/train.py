@@ -1,22 +1,20 @@
 """Training script for diffusion models."""
 
-from datetime import datetime
 import wandb
 import torch
-from diffusers import AutoencoderKL, VQModel
+from ema_pytorch import EMA
+from diffusers.optimization import get_cosine_schedule_with_warmup
+from diffusion_models.utils.attribute_utils import (
+    create_sample_attributes,
+    create_multi_hot_attributes
+)
 
 from diffusion_models.config import parse_args
 from diffusion_models.datasets.dataloader import setup_dataloader, create_attribute_dataloader
 from diffusion_models.training_loop import train_loop
 from diffusion_models.noise_schedulers.ddim_scheduler import create_ddim_scheduler
 from diffusion_models.noise_schedulers.ddpm_scheduler import create_ddpm_scheduler
-from ema_pytorch import EMA
-
-from diffusers.optimization import get_cosine_schedule_with_warmup
-from diffusion_models.utils.attribute_utils import (
-    create_sample_attributes,
-    create_multi_hot_attributes
-)
+from diffusion_models.models.model_factory import ModelFactory
 
 
 def main():
@@ -34,138 +32,8 @@ def main():
         print(f"\t{key}: {value}")
     print("=" * 80)
 
-    # Create model and noise scheduler
-    model, attribute_embedder, vae = None, None, None
-    if config.model == "unet_notebook":
-        from diffusion_models.models.unconditional.unet_notebook import create_model
-        model = create_model(config)
-    elif config.model == "unet_notebook_r1":
-        from diffusion_models.models.unconditional.unet_notebook_r1 import create_model
-        model = create_model(config)
-    elif config.model == "unet_notebook_r2":
-        from diffusion_models.models.unconditional.unet_notebook_r2 import create_model
-        model = create_model(config)
-    elif config.model == "unet_notebook_r3":
-        from diffusion_models.models.unconditional.unet_notebook_r3 import create_model
-        model = create_model(config)
-    elif config.model == "unet_notebook_r4":
-        from diffusion_models.models.unconditional.unet_notebook_r4 import create_model
-        model = create_model(config)
-    elif config.model == "unet_notebook_r5":
-        from diffusion_models.models.unconditional.unet_notebook_r5 import create_model
-        model = create_model(config)
-    elif config.model == "dit_transformer_d1":
-        from diffusion_models.models.unconditional.dit_transformer_d1 import create_model
-        model = create_model(config)
-        model.class_embedder = torch.nn.Identity()
-        model.use_class_embedding = False
-
-    elif config.model == "dit_transformer_d2":
-        from diffusion_models.models.unconditional.dit_transformer_d2 import create_model
-        model = create_model(config)
-        model.class_embedder = torch.nn.Identity()
-        model.use_class_embedding = False
-        #model.gradient_checkpointing_enable()
-
-    elif config.model in ["conditional_unet", "pc_unet_1"]:
-        # Pixel Conditional UNet
-        from diffusion_models.models.conditional.pc_unet_1 import create_model
-        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
-        model = create_model(config)
-        attribute_embedder = AttributeEmbedder(
-            input_dim=config.num_attributes,              # 40 binary attributes
-            hidden_dim=256                                # Match cross_attention_dim
-        )
-    elif config.model in ["latent_conditional_unet", "lc_unet_1"]:
-        # Latent Conditional UNet
-        from diffusion_models.models.conditional.lc_unet_1 import create_model
-        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
-        # Create model
-        model = create_model(config)
-        # Load VAE
-        vae = AutoencoderKL.from_pretrained(
-                "stable-diffusion-v1-5/stable-diffusion-v1-5", 
-                subfolder="vae", 
-                torch_dtype=torch.float32
-            )
-        vae = vae.to(config.device)
-            
-        # Create attribute embedder to project attribute vectors to conditioning dimension
-        attribute_embedder = AttributeEmbedder(
-            input_dim=config.num_attributes,              # 40 binary attributes
-            hidden_dim=256                                # Match cross_attention_dim
-        )
-    elif config.model == "lc_unet_2":
-        # Latent Conditional UNet
-        from diffusion_models.models.conditional.lc_unet_2 import create_model
-        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
-        # Create model
-        model = create_model(config)
-        # Load VAE
-        vae = VQModel.from_pretrained(
-                "CompVis/ldm-celebahq-256",  # Use CelebA-HQ VQ-VAE
-                subfolder="vqvae", 
-                torch_dtype=torch.float32
-            )
-        vae = vae.to(config.device)
-        # Freeze VAE
-        vae.eval()  # Set to evaluation mode
-        vae.requires_grad_(False)  # Disable gradient calculation
-
-        # Create attribute embedder to project attribute vectors to conditioning dimension
-        attribute_embedder = AttributeEmbedder(
-            input_dim=config.num_attributes,              # 40 binary attributes
-            num_layers=3,
-            hidden_dim=256                                # Match cross_attention_dim
-        )
-    elif config.model == "lc_unet_3_vqvae":
-        # Latent Conditional UNet
-        from diffusion_models.models.conditional.lc_unet_3_vqvae import create_model
-        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
-        # Create model
-        model = create_model(config)
-        # Load VAE
-        vae = VQModel.from_pretrained(
-                "CompVis/ldm-celebahq-256",  # Use CelebA-HQ VQ-VAE
-                subfolder="vqvae", 
-                torch_dtype=torch.float32
-            )
-        vae = vae.to(config.device)
-        # Freeze VAE
-        vae.eval()  # Set to evaluation mode
-        vae.requires_grad_(False)  # Disable gradient calculation
-
-        # Create attribute embedder to project attribute vectors to conditioning dimension
-        attribute_embedder = AttributeEmbedder(
-            input_dim=config.num_attributes,              # 40 binary attributes
-            num_layers=3,
-            hidden_dim=256                                # Match cross_attention_dim
-        )
-    elif config.model == "lc_unet_4_vqvae":
-        # Latent Conditional UNet
-        from diffusion_models.models.conditional.lc_unet_4_vqvae import create_model
-        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
-        # Create model
-        model = create_model(config)
-        # Load VAE
-        vae = VQModel.from_pretrained(
-                "CompVis/ldm-celebahq-256",  # Use CelebA-HQ VQ-VAE
-                subfolder="vqvae", 
-                torch_dtype=torch.float32
-            )
-        vae = vae.to(config.device)
-        # Freeze VAE
-        vae.eval()  # Set to evaluation mode
-        vae.requires_grad_(False)  # Disable gradient calculation
-
-        # Create attribute embedder to project attribute vectors to conditioning dimension
-        attribute_embedder = AttributeEmbedder(
-            input_dim=config.num_attributes,              # 40 binary attributes
-            num_layers=3,
-            hidden_dim=256                                # Match cross_attention_dim
-        )
-    else:
-        raise ValueError(f"Invalid model type: {config.model}")
+    # Create model and noise scheduler using the model factory
+    model, attribute_embedder, vae = ModelFactory.create_model(config)
     
     ema = EMA(model, beta=0.9999, update_after_step=0, update_every=1) if config.use_ema else None
 

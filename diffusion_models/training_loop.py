@@ -15,13 +15,13 @@ from diffusion_models.losses.info_nce import info_nce
 
 
 def train_loop(
-    config, 
-    model, 
-    noise_scheduler, 
-    optimizer, 
-    train_dataloader, 
-    lr_scheduler=None, 
-    val_dataloader=None, 
+    config,
+    model,
+    noise_scheduler,
+    optimizer,
+    train_dataloader,
+    lr_scheduler=None,
+    val_dataloader=None,
     preprocess=None,
     is_conditional=False,
     grid_attributes=None,
@@ -31,7 +31,7 @@ def train_loop(
     ema=None
 ):
     """Main training loop.
-    
+
     Args:
         config: Training configuration
         model: The UNet model to train
@@ -83,7 +83,7 @@ def train_loop(
         )
     if vae is not None:
         vae = accelerator.prepare(vae)
-    
+
     if val_dataloader:
         val_dataloader = accelerator.prepare(val_dataloader)
 
@@ -105,7 +105,7 @@ def train_loop(
                 clean_images, attributes = batch
             else:
                 clean_images = batch["images"]
-            
+
             # Sample noise to add to the images
             bs = clean_images.shape[0]
 
@@ -141,28 +141,24 @@ def train_loop(
                     noise_pred = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states, return_dict=False)[0]
                 else:
                     # For unconditional model
-
-                    noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+                    if "dit" in config.model.lower():
+                        # DiT model requires class_labels
+                        dummy_class_labels = torch.zeros(noisy_images.shape[0], dtype=torch.long, device=noisy_images.device)
+                        noise_pred = model(noisy_images, timesteps, class_labels=dummy_class_labels, return_dict=False)[0]
+                    else:
+                        # Other Unet models
+                        noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
 
                 # Calculate loss
                 if is_conditional and config.use_embedding_loss:
                     # Squeeze the sequence dimension from encoder_hidden_states
                     encoder_hidden_states = encoder_hidden_states.squeeze(1)  # Shape: (batch_size, hidden_dim)
-                    # print(f"Using embedding loss")
-                    # print(f"encoder_hidden_states: {encoder_hidden_states.shape}")
-                    # print(f"attributes: {attributes.shape}")
                     embedding_loss = info_nce(encoder_hidden_states, attributes)
                     diffusion_loss = F.mse_loss(noise_pred, noise)
                     # Loss = diffusion loss + lambda * embedding loss
                     loss = diffusion_loss + config.embedding_loss_lambda * embedding_loss
-                    # print(f"embedding_loss: {embedding_loss.item()}")
-                    # print(f"diffusion_loss: {diffusion_loss.item()}")
-                    # print(f"loss: {loss.item()}")
-                    
                 else:
                     # Loss = diffusion loss
-                    dummy_class_labels = torch.zeros(noisy_images.shape[0], dtype=torch.long, device=noisy_images.device)
-                    noise_pred = model(noisy_images, timesteps, class_labels=dummy_class_labels, return_dict=False)[0]
                     loss = F.mse_loss(noise_pred, noise)
 
                 accelerator.backward(loss)
@@ -205,11 +201,11 @@ def train_loop(
                     else:
                         # Conditional pipeline with direct pixel-space
                         raise NotImplementedError("Pixel-space conditional generation not supported yet")
-                    
+
                     # Move grid attributes to correct device
                     grid_attributes = grid_attributes.to(accelerator.device)
                     _, image_grid = generate_grid_images_attributes(
-                        config, epoch, pipeline, 
+                        config, epoch, pipeline,
                         attributes=grid_attributes
                     )
                 else:
@@ -218,7 +214,7 @@ def train_loop(
                         pipeline = DDPMPipeline(unet=accelerator.unwrap_model(ema.ema_model), scheduler=noise_scheduler)
                     else:
                         pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
-                        
+
                     # Move the pipeline to the accelerator device.
                     pipeline = pipeline.to(accelerator.device)
 
@@ -228,14 +224,14 @@ def train_loop(
                 # Log grid images to WandB
                 if config.use_wandb:
                     wandb.log({
-                        "validation/grid_images": wandb.Image(image_grid), 
+                        "validation/grid_images": wandb.Image(image_grid),
                         "validation/epoch": epoch
                     })
 
                 # Calculate FID if validation dataset is available
                 if val_dataloader:
                     print(f"Calculating FID score at epoch {epoch + 1}...")
-                    
+
                     if is_conditional and val_attributes is not None:
                         # Move validation attributes to correct device
                         val_attributes = val_attributes.to(accelerator.device)
@@ -260,11 +256,11 @@ def train_loop(
                             num_samples=config.val_n_samples
                         )
                     print(f"FID Score: {fid_score:.2f}")
-                    
+
                     # Log to WandB
                     if config.use_wandb:
                         wandb.log({"validation/fid_score": fid_score})
-                        
+
                     # Save best model if FID score improves
                     if fid_score < best_fid_score:
                         best_fid_score = fid_score
