@@ -21,7 +21,6 @@ class ModelFactory:
             Tuple of (model, attribute_embedder, vae)
         """
         model, attribute_embedder, vae = None, None, None
-
         # Unconditional models
         if config.model == "unet_notebook":
             from diffusion_models.models.unconditional.unet_notebook import create_model
@@ -41,7 +40,17 @@ class ModelFactory:
         elif config.model == "unet_notebook_r5":
             from diffusion_models.models.unconditional.unet_notebook_r5 import create_model
             model = create_model(config)
-
+        elif config.model == "dit_transformer_d1":
+            from diffusion_models.models.unconditional.dit_transformer_d1 import create_model
+            model = create_model(config)
+            model.class_embedder = torch.nn.Identity()
+            model.use_class_embedding = False
+        elif config.model == "dit_transformer_d2":
+            from diffusion_models.models.unconditional.dit_transformer_d2 import create_model
+            model = create_model(config)
+            model.class_embedder = torch.nn.Identity()
+            model.use_class_embedding = False
+            #model.gradient_checkpointing_enable()
         # Pixel Conditional models
         elif config.model in ["conditional_unet", "pc_unet_1"]:
             from diffusion_models.models.conditional.pc_unet_1 import create_model
@@ -50,7 +59,6 @@ class ModelFactory:
                 input_dim=config.num_attributes,  # 40 binary attributes
                 hidden_dim=256                    # Match cross_attention_dim
             )
-
         # Latent Conditional models with AutoencoderKL
         elif config.model in ["latent_conditional_unet", "lc_unet_1"]:
             from diffusion_models.models.conditional.lc_unet_1 import create_model
@@ -69,7 +77,6 @@ class ModelFactory:
                 input_dim=config.num_attributes,  # 40 binary attributes
                 hidden_dim=256                    # Match cross_attention_dim
             )
-
         # Latent Conditional models with VQModel
         elif config.model == "lc_unet_2":
             from diffusion_models.models.conditional.lc_unet_2 import create_model
@@ -89,7 +96,6 @@ class ModelFactory:
                 num_layers=3,
                 hidden_dim=256                    # Match cross_attention_dim
             )
-
         # Latent Conditional models with VQModel (v3)
         elif config.model == "lc_unet_3_vqvae":
             from diffusion_models.models.conditional.lc_unet_3_vqvae import create_model
@@ -109,7 +115,6 @@ class ModelFactory:
                 num_layers=3,
                 hidden_dim=256                    # Match cross_attention_dim
             )
-
         # Latent Conditional models with AutoencoderKL (v3)
         elif config.model == "lc_unet_3_vae":
             from diffusion_models.models.conditional.lc_unet_3_vae import create_model
@@ -129,7 +134,6 @@ class ModelFactory:
                 num_layers=3,
                 hidden_dim=256                    # Match cross_attention_dim
             )
-
         # Latent Conditional models with VQModel (v4)
         elif config.model == "lc_unet_4_vqvae":
             from diffusion_models.models.conditional.lc_unet_4_vqvae import create_model

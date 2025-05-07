@@ -151,7 +151,13 @@ def train_loop(
                     noise_pred = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states, return_dict=False)[0]
                 else:
                     # For unconditional model
-                    noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+                    if "dit" in config.model.lower():
+                        # DiT model requires class_labels
+                        dummy_class_labels = torch.zeros(noisy_images.shape[0], dtype=torch.long, device=noisy_images.device)
+                        noise_pred = model(noisy_images, timesteps, class_labels=dummy_class_labels, return_dict=False)[0]
+                    else:
+                        # Other Unet models
+                        noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
 
                 # Calculate loss
                 if is_conditional and config.use_embedding_loss:
@@ -218,6 +224,10 @@ def train_loop(
                         pipeline = DDPMPipeline(unet=accelerator.unwrap_model(ema.ema_model), scheduler=noise_scheduler)
                     else:
                         pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
+
+                    # Move the pipeline to the accelerator device.
+                    pipeline = pipeline.to(accelerator.device)
+
                     # For unconditional model
                     _, image_grid = generate_grid_images(config, epoch, pipeline)
 

@@ -34,7 +34,6 @@ def main():
 
     # Create model and noise scheduler using the model factory
     model, attribute_embedder, vae = ModelFactory.create_model(config)
-
     ema = EMA(model, beta=0.9999, update_after_step=0, update_every=1) if config.use_ema else None
 
     if config.use_wandb:
