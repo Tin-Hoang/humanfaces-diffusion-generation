@@ -72,6 +72,13 @@ class TrainingConfig:
     use_ema: bool = False
     use_scale_shift_norm: bool = False
 
+    # Transformer-specific parameters (only used if model == "dit_transformer")
+    embed_dim: int = 512
+    depth: int = 12
+    num_heads: int = 8
+    patch_size: int = 16
+    img_size: int = 256
+
     def __post_init__(self):
         """Set default output_dir if not provided."""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

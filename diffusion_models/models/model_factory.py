@@ -41,7 +41,17 @@ class ModelFactory:
         elif config.model == "unet_notebook_r5":
             from diffusion_models.models.unconditional.unet_notebook_r5 import create_model
             model = create_model(config)
-        
+        elif config.model == "dit_transformer_d1":
+            from diffusion_models.models.unconditional.dit_transformer_d1 import create_model
+            model = create_model(config)
+            model.class_embedder = torch.nn.Identity()
+            model.use_class_embedding = False
+        elif config.model == "dit_transformer_d2":
+            from diffusion_models.models.unconditional.dit_transformer_d2 import create_model
+            model = create_model(config)
+            model.class_embedder = torch.nn.Identity()
+            model.use_class_embedding = False
+            #model.gradient_checkpointing_enable()
         # Pixel Conditional models
         elif config.model in ["conditional_unet", "pc_unet_1"]:
             from diffusion_models.models.conditional.pc_unet_1 import create_model

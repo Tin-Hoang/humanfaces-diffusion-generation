@@ -1,21 +1,21 @@
 model: dit_transformer_d1
-run_name: dit_transformer_d1
+run_name: dit_transformer_base
 
 image_size: 128
 train_batch_size: 16
 eval_batch_size: 16
-num_epochs: 100
+num_epochs: 2000
 learning_rate: 2e-4
 weight_decay: 5e-3
 lr_warmup_steps: 1000
 gradient_accumulation_steps: 1
 
-save_image_epochs: 5
-save_model_epochs: 10
+save_image_epochs: 25
+save_model_epochs: 250
 mixed_precision: "fp16"
 
 train_dir: data/celeba_hq_split/train
-val_dir: data/celeba_hq_split/test
+#val_dir: data/celeba_hq_split/test
 val_n_samples: 200
 dataset_name: celebA_128
 num_workers: 4
