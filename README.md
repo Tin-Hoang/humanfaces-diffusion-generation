@@ -17,12 +17,14 @@ This repository contains an implementation of diffusion models for image generat
 3. [Project Structure](#3-project-structure)
 4. [Usage](#4-usage)
    - [4.1 Training](#41-training)
-     - [4.1.1 Training (use script)](#411-training-use-script)
-     - [4.1.2 Training with Accelerate (distributed training)](#412-training-with-accelerate-distributed-training)
+     - [4.1.1 Training use YAML config (recommended)](#411-training-use-yaml-config-recommended)
+     - [4.1.2 Training use script arguments](#412-training-use-script-arguments)
+     - [4.1.3 Training with Accelerate (distributed training)](#413-training-with-accelerate-distributed-training)
+     - [4.1.4 Using the Notebook (deprecated)](#414-using-the-notebook-old-deprecated-method)
    - [4.2 Image Generation](#42-image-generation)
      - [4.2.1 Generation using the Gradio UI](#421-generation-using-the-gradio-ui)
      - [4.2.2 Generation using the command line script](#422-generation-using-the-command-line-script)
-   - [4.3 Using the Notebook](#43-using-the-notebook)
+     - [4.2.3 Attribute-Based Generation](#423-attribute-based-generation)
 5. [License](#5-license)
 6. [Contributors](#6-contributors)
 
@@ -78,7 +80,16 @@ EEEM068-Diffusion-Models/
 
 ### 4.1 Training
 
-#### 4.1.1 Training (use script)
+#### 4.1.1 Training use YAML config (recommended)
+
+It is recommended to config your experiment with the YAML config file to train the model.
+The sample configs for unconditional and conditional training are located at folder `configs/unconditional` and `configs/conditional` respectively.
+
+```bash
+python scripts/train.py --config <path_to_config_file>
+```
+
+#### 4.1.2 Training use script arguments
 
 To train a model, use the `train.py` script:
 
@@ -194,7 +205,7 @@ Link to the dataset: [CelebAMask-HQ](https://github.com/switchablenorms/CelebAMa
 </p>
 </details>
 
-#### 4.1.2 Training with Accelerate (distributed training)
+#### 4.1.3 Training with Accelerate (distributed training)
 
 The training script uses the Hugging Face 🤗 Accelerate library for distributed training. Follow these steps to train a model:
 
@@ -221,6 +232,19 @@ accelerate launch scripts/train.py \
     --use-wandb \
     --seed 42
 ```
+
+### 4.1.4 Using the Notebook (old deprecated method)
+
+Alternatively, you can use the provided Jupyter notebooks for a more interactive experience:
+
+**Note:** This method is only for the default unconditional training experiments. It may not be updated with latest models and code.
+
+```bash
+# Start Jupyter Lab
+jupyter lab
+```
+
+Then navigate to `notebooks/` directory and open the relevant notebook.
 
 ### 4.2 Image Generation
 
@@ -272,16 +296,44 @@ python scripts/generate.py \
     --seed 42
 ```
 
-### 4.3 Using the Notebook
+#### 4.2.3 Attribute-Based Generation:
 
-Alternatively, you can use the provided Jupyter notebooks for a more interactive experience:
+For conditional models, you can generate images based on attributes from existing images using the `generate_on_attributes.py` script. This is useful for creating controlled variations of faces while preserving attribute characteristics.
+
+Input arguments:
+- `--checkpoint`: Path to the conditional model checkpoint directory
+- `--input-dir`: Directory containing input images with attributes to use
+- `--attribute-file`: Path to the attribute label file
+- `--pipeline`: Pipeline type (`ddpm` or `ddim`)
+- `--num-inference-steps`: Number of denoising steps
+- `--output-dir`: Directory to save generated images
+- `--batch-size`: Number of images to generate in parallel
+- `--device`: Device to use (`cuda` or `cpu`)
+- `--seed`: Random seed for reproducibility
+- `--image-size`: Size of generated images (default: 256)
 
 ```bash
-# Start Jupyter Lab
-jupyter lab
+# Generate images based on attributes from test images
+python scripts/generate_on_attributes.py \
+    --checkpoint "checkpoints/conditional_model" \
+    --input-dir "data/CelebA-HQ-split/test_300" \
+    --attribute-file "data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt" \
+    --pipeline ddim \
+    --num-inference-steps 100 \
+    --output-dir "outputs/samples/attribute_generated" \
+    --batch-size 4 \
+    --seed 42
+
+# Or use the convenience script
+./generate_conditional.sh
 ```
 
-Then navigate to `notebooks/` directory and open the relevant notebook.
+The script will:
+1. Load the input images and their attributes
+2. Generate new images conditioned on those attributes
+3. Save the output images with the same IDs as the input files
+
+This allows for direct comparison between input and generated images that share the same facial attributes.
 
 ## 5. License
 
