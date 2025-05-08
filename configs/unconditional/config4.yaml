@@ -1,0 +1,44 @@
+model: dit_transformer_d2
+run_name: dit_transformer_large_run
+
+# Data and image settings
+image_size: 128
+train_dir: data/celeba_hq_split/train
+#val_dir: data/celeba_hq_split/test
+dataset_name: celebA_128
+num_workers: 4
+
+# Training settings
+train_batch_size: 8              # Using 8 may be necessary for memory with the large model
+eval_batch_size: 16
+num_epochs: 2000                  # Long training schedule for high-quality output
+gradient_accumulation_steps: 1   # Increase this if you need a larger effective batch size
+
+# Optimizer settings
+learning_rate: 2e-4
+weight_decay: 5e-3
+lr_warmup_steps: 2000            # Longer warmup to stabilize training for a larger model
+
+# Diffusion model settings
+num_train_timesteps: 1000
+scheduler_type: ddpm
+
+# Mixed precision and EMA
+mixed_precision: "fp16"          # Use fp16 to reduce memory usage and speed up training
+use_ema: true                    # EMA typically improves generation quality
+use_scale_shift_norm: true
+
+# Evaluation settings
+val_n_samples: 100               # More samples for robust evaluation
+
+# Logging and checkpointing
+save_image_epochs: 50
+save_model_epochs: 200
+
+# WandB logging (optional)
+use_wandb: true
+wandb_project: EEEM068_Diffusion_Models
+wandb_entity: tin-hoang
+
+# Conditional flag (unconditional in this case)
+is_conditional: false
