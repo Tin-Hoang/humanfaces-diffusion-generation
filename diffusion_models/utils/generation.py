@@ -2,11 +2,12 @@
 
 from pathlib import Path
 from typing import List, Union
+from diffusion_models.datasets.attribute_dataset import AttributeDataset
 import torch
 from PIL import Image
 from tqdm import tqdm
 import os
-from diffusers import DDPMPipeline, DiffusionPipeline
+from diffusers import DDPMPipeline
 from diffusers.models.transformers import DiTTransformer2DModel
 from diffusion_models.pipelines.attribute_pipeline import AttributeDiffusionPipeline
 
@@ -252,3 +253,75 @@ def generate_grid_images_attributes(
     image_grid.save(f"{test_dir}/{epoch:04d}.png")
 
     return images, image_grid
+
+
+def generate_images_from_attributes(
+    pipeline: AttributeDiffusionPipeline,
+    dataset: AttributeDataset,
+    output_dir: Path,
+    batch_size: int = 4,
+    device: str = "cuda",
+    seed: int = 42,
+    num_inference_steps: int = 1000
+):
+    """Generate images from attributes and save them with the same ID as input images.
+
+    Args:
+        pipeline: The attribute diffusion pipeline
+        dataset: The dataset containing images and their attributes
+        output_dir: Directory to save generated images
+        batch_size: Batch size for generation
+        device: Device to use for generation
+        seed: Random seed for reproducibility
+        num_inference_steps: Number of denoising steps
+    """
+    # Create output directory
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Move pipeline to device
+    pipeline = pipeline.to(device)
+
+    # Setup dataloader
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=4
+    )
+
+    # Get image_ids from dataset
+    image_ids = dataset.attributes_df['image_id'].tolist()
+
+    # Generate images batch by batch
+    generated_count = 0
+
+    with torch.no_grad():
+        for batch_idx, (_, attributes) in enumerate(tqdm(dataloader, desc="Generating images")):
+            # Get current batch image_ids
+            batch_image_ids = image_ids[batch_idx*batch_size:batch_idx*batch_size + len(attributes)]
+
+            # Move attributes to device
+            attributes = attributes.to(device)
+
+            # Set seed for reproducibility for this batch
+            batch_seed = seed + batch_idx
+            generator = torch.Generator(device=device).manual_seed(batch_seed)
+
+            # Generate images based on attributes
+            output = pipeline(
+                attributes=attributes,
+                num_inference_steps=num_inference_steps,
+                generator=generator,
+                output_type="pil"
+            )
+
+            generated_images = output["sample"]
+
+            # Save images with the same ID as input
+            for img, img_id in zip(generated_images, batch_image_ids):
+                # Generate output filename using the same ID
+                output_filename = os.path.splitext(img_id)[0] + ".png"
+                img.save(output_dir / output_filename)
+                generated_count += 1
+
+    print(f"Generated {generated_count} images in {output_dir}")
