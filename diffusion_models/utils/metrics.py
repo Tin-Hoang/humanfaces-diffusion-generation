@@ -218,3 +218,80 @@ def generate_and_calculate_fid_attributes(
     # Calculate and return FID score
     fid_score = float(fid.compute())
     return fid_score
+    
+def generate_and_calculate_fid_attr_seg(
+    config,
+    model,
+    pipeline,
+    val_dataloader,
+    val_attributes,
+    vae=None,
+    attribute_embedder=None,
+    output_dir="outputs/val_images",
+    num_samples=300,
+):
+    """Generates images conditioned on attributes + segmentation and calculates FID.
+
+    Args:
+        config: TrainingConfig
+        model: UNet model
+        pipeline: Custom diffusion pipeline (e.g., AttributeDiffusionPipeline)
+        val_dataloader: Dataloader for val images
+        val_attributes: [B, A] tensor of attribute conditioning
+        vae: Optional VAE or VQModel
+        attribute_embedder: Optional embedding module for attributes
+        output_dir: Where to save generated images
+        num_samples: Number of validation samples to generate for FID
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    model.eval()
+
+    device = config.device
+    total = 0
+    image_list = []
+
+    with torch.no_grad():
+        for batch in tqdm(val_dataloader, desc="Generating images for FID"):
+            if total >= num_samples:
+                break
+
+            # Unpack
+            image, attributes, seg = batch
+            bsz = image.size(0)
+            image = image.to(device)
+            attributes = attributes.to(device)
+            seg = seg.to(device)
+
+            if attribute_embedder:
+                attr_embeds = attribute_embedder(attributes)  # [B, D]
+            else:
+                attr_embeds = attributes  # assume already embedded
+
+            # Forward generation
+            samples = pipeline(
+                batch_size=bsz,
+                condition_embeddings=attr_embeds,
+                segmentation=seg,
+                generator=torch.manual_seed(config.seed),
+            ).images  # List of PILs or torch tensors depending on pipeline
+
+            # Save generated images
+            for i, sample in enumerate(samples):
+                if isinstance(sample, torch.Tensor):
+                    if sample.ndim == 3:
+                        save_image(sample, os.path.join(output_dir, f"{total+i:05}.png"))
+                else:
+                    sample.save(os.path.join(output_dir, f"{total+i:05}.png"))
+
+            total += bsz
+
+    # FID calculation
+    fid_score = fid.compute_fid(
+        fdir1=output_dir,
+        fdir2=config.val_dir,
+        mode="clean",
+        dataset_name=None
+    )
+
+    print(f"\n✅ FID (attribute + segmentation): {fid_score:.2f}")
+    return fid_score

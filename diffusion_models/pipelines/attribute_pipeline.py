@@ -4,6 +4,8 @@ from typing import Optional, Dict, Union
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
+import torch.nn.functional as F
+
 
 from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
 
@@ -51,6 +53,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
     def __call__(
         self,
         attributes: torch.Tensor,
+        segmentation: Optional[torch.Tensor] = None,  # <-- New argument
         num_inference_steps: int = 50,
         generator: Optional[torch.Generator] = None,
         output_type: str = "pil",  # "pil" or "tensor"
@@ -95,6 +98,8 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             dtype = self.unet.dtype
             attributes = attributes.to(device, dtype)
 
+            if generator is None:
+                generator = torch.Generator(device=device).manual_seed(42)
             # Sample initial noise in latent space
             latent_size = self.unet.config.sample_size  # Should be image_size/8
             latents = torch.randn(
@@ -112,7 +117,48 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             latents = latents * self.scheduler.init_noise_sigma
 
             # Project attributes to conditioning input
-            cond = self.attribute_embedder(attributes)  # (batch_size, 1, 256)
+            # === Begin Conditioning Setup ===
+            cond_attr = self.attribute_embedder(attributes)  # [B, 1, attr_dim]
+            assert cond_attr.shape[-1] == 128, f"[DEBUG] Attribute embedding dim must be 128, got {cond_attr.shape[-1]}"
+
+            if segmentation is not None:
+                if segmentation.dim() != 4:
+                    raise ValueError("Segmentation tensor must have shape (B, C, H, W)")
+
+                segmentation = segmentation.to(device, dtype)
+                if segmentation.shape[1] == 1:
+                    segmentation = segmentation.repeat(1, 3, 1, 1)
+
+                seg_input = F.interpolate(segmentation, size=(512, 512), mode='bilinear', align_corners=False)
+                base_model = getattr(self.unet.segmentation_encoder, "base_model", None)
+                if base_model is None:
+                    raise ValueError("UNet is missing segmentation_encoder.base_model")
+
+                with torch.no_grad():
+                    encoder_output = base_model(seg_input)
+                    seg_features = encoder_output.last_hidden_state.mean(dim=1)  # [B, seg_dim]
+                
+                assert seg_features.shape[1] == self.unet.seg_proj.in_features, \
+                    f"Expected seg_features shape [B, {self.unet.seg_proj.in_features}], got {seg_features.shape}"
+                
+                seg_embedding = self.unet.seg_proj(seg_features).unsqueeze(1)  # [B, 1, seg_embed_dim]
+                assert seg_embedding.shape[-1] == 128, f"[DEBUG] seg_embedding dim must be 128, got {seg_embedding.shape[-1]}"
+
+                # Combine attribute and segmentation
+                cond = torch.cat([cond_attr, seg_embedding], dim=-1)  # [B, 1, 256]
+            else:
+                # Attribute-only conditioning
+                cond = cond_attr  # [B, 1, 128]
+                # Pad with zeros to reach [B, 1, 256]
+                padding = torch.zeros(cond.shape[0], 1, 128, device=cond.device, dtype=cond.dtype)
+                cond = torch.cat([cond, padding], dim=-1)  # [B, 1, 256]
+
+            # Repeat for all cross-attn layers (UNet expects [B, 4, 256])
+            cond = cond.repeat(1, 4, 1)
+            assert cond.shape == (batch_size, 4, 256), f"Final cond shape mismatch: {cond.shape}"
+# === End Conditioning Setup ===
+
+
 
             # Print info and setup progress bar
             scheduler_name = "DDIM" if isinstance(self.scheduler, DDIMScheduler) else "DDPM"

@@ -13,27 +13,36 @@ class AttributeDataset(Dataset):
     
     This dataset loads images from a directory and their corresponding attribute labels
     from a CSV-formatted text file. The attribute labels are binary (-1 for no, 1 for yes).
-    
+   
     Args:
         image_dir (str): Directory containing the image files
         attribute_label_path (str): Path to the attribute label file
         image_size (int): Size to resize images to (both height and width)
         transform (Optional[transforms.Compose]): Optional transforms to apply to images
-    """
+
+     """ 
+
     
     def __init__(
         self,
         image_dir: str,
         attribute_label_path: str,
         image_size: int = 256,
-        transform: Optional[transforms.Compose] = None
+        transform: Optional[transforms.Compose] = None,
+        mask_dir: Optional[str] = None
     ):
         self.image_dir = image_dir
+        self.mask_dir = mask_dir
         self.transform = transform or transforms.Compose([
             transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.LANCZOS),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
+        
+        self.mask_transform = transforms.Compose([
+            transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.NEAREST),
+            transforms.ToTensor()
+        ]) if mask_dir else None
         
         # Get list of existing images in the directory
         existing_images = set(f"{f}" for f in os.listdir(image_dir) if f.endswith('.jpg'))
@@ -55,28 +64,22 @@ class AttributeDataset(Dataset):
         # Now read the data, skipping the first two lines
         self.attributes_df = pd.read_csv(
             attribute_label_path,
-            skiprows=2,  # Skip both the count line and header line
-            sep='\s+',  # Use regex for whitespace
-            header=None,  # No header since we already read it
-            names=['image_id'] + attribute_names,  # Use our own column names
-            dtype=str  # Read all columns as strings initially
+            skiprows=2,
+            sep=r'\s+',
+            header=None,
+            names=['image_id'] + attribute_names,
+            dtype=str
         )
-        # Ensure image_id has .jpg extension
         self.attributes_df['image_id'] = self.attributes_df['image_id'].apply(
             lambda x: f"{x}.jpg" if not x.endswith('.jpg') else x
         )
-        # Convert attribute columns to float32
         for col in self.attributes_df.columns[1:]:
-            # First convert to numeric
             self.attributes_df[col] = pd.to_numeric(self.attributes_df[col], errors='coerce')
-            # Then convert -1 to 0 for multi-hot vector
             self.attributes_df[col] = self.attributes_df[col].map({-1: 0, 1: 1})
         
-        # Filter the dataframe to only include rows where the image exists
         self.attributes_df = self.attributes_df[self.attributes_df['image_id'].isin(existing_images)]
         
         if len(self.attributes_df) == 0:
-            # Print more debugging information
             print("Debugging information:")
             print(f"Total images in attribute file: {len(self.attributes_df)}")
             print(f"Sample of image_ids in attribute file before filtering:")
@@ -84,7 +87,6 @@ class AttributeDataset(Dataset):
             print("Sample of image_ids in directory:")
             print(list(existing_images)[:5])
             
-            # Check for any potential mismatches
             sample_attr_ids = set(self.attributes_df['image_id'].head().tolist())
             sample_dir_ids = set(list(existing_images)[:5])
             print("Checking for exact matches:")
@@ -99,86 +101,78 @@ class AttributeDataset(Dataset):
                 f"First few images in attribute file: {list(self.attributes_df['image_id'])[:5] if len(self.attributes_df) > 0 else 'No images found'}"
             )
         
-        # Get the attribute names (excluding the image_id column)
         self.attribute_names = self.attributes_df.columns[1:].tolist()
         
         print(f"Final dataset size: {len(self.attributes_df)} images with attributes out of {len(existing_images)} images in directory")
         
     def __len__(self) -> int:
-        """Return the total number of samples in the dataset."""
         return len(self.attributes_df)
     
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Get a sample from the dataset.
-        
-        Args:
-            idx (int): Index of the sample to get
-            
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: A tuple containing:
-                - The image tensor (C, H, W)
-                - The attribute labels tensor (N,) where N is the number of attributes
-        """
-        # Get the image filename and attributes for this index
         row = self.attributes_df.iloc[idx]
         image_id = row['image_id']
-        
-        # Construct the full image path
         image_path = os.path.join(self.image_dir, image_id)
         
-        # Load and transform the image
         image = Image.open(image_path).convert('RGB')
         if self.transform:
             image = self.transform(image)
             
-        # Get the attribute labels (excluding the image_id column)
-        # Convert to numpy array first, then to tensor
         attributes = torch.from_numpy(row[1:].values.astype(np.float32))
         
-        return image, attributes
+        if self.mask_dir:
+            combined_mask = torch.zeros((256, 256), dtype=torch.uint8)
+
+            part_labels = [
+                'hair', 'hat', 'eyeglasses', 'eyes', 'eyebrows',
+                'nose', 'mouth', 'lips', 'teeth', 'earrings'
+            ]
+
+            base_id = image_id.replace('.jpg', '')
+            for class_idx, part in enumerate(part_labels, start=1):
+                part_filename = f"{base_id}_{part}.png"
+                part_path = os.path.join(self.mask_dir, part_filename)
+                
+                if os.path.exists(part_path):
+                    part_mask = Image.open(part_path).convert('RGB')
+                    part_mask = self.mask_transform(part_mask)  # (3, H, W)
+                    part_mask_gray = part_mask.mean(dim=0)  # (H, W)
+                    combined_mask[part_mask_gray > 0.05] = class_idx  # 0.05 threshold to ignore near-black
+
+            combined_mask = combined_mask.unsqueeze(0).float()
+            return image, attributes, combined_mask
+        else:
+            return image, attributes
     
     def get_attribute_names(self) -> List[str]:
-        """Get the list of attribute names.
-        
-        Returns:
-            List[str]: List of attribute names
-        """
         return self.attribute_names
 
 # DEBUGGING
 if __name__ == "__main__":
     import sys
     from pathlib import Path
-    # Attributes: 5_o_Clock_Shadow Arched_Eyebrows Attractive Bags_Under_Eyes Bald Bangs Big_Lips Big_Nose Black_Hair Blond_Hair Blurry Brown_Hair Bushy_Eyebrows Chubby Double_Chin Eyeglasses Goatee Gray_Hair Heavy_Makeup High_Cheekbones Male Mouth_Slightly_Open Mustache Narrow_Eyes No_Beard Oval_Face Pale_Skin Pointy_Nose Receding_Hairline Rosy_Cheeks Sideburns Smiling Straight_Hair Wavy_Hair Wearing_Earrings Wearing_Hat Wearing_Lipstick Wearing_Necklace Wearing_Necktie Young
     
     try:
-        # Initialize the dataset
         dataset = AttributeDataset(
             image_dir="data/CelebA-HQ-split/test_300",
-            attribute_label_path="data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt"
+            attribute_label_path="data/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt",
+            mask_dir="data/CelebA-HQ-split/test_300_masks"
         )
         
         assert len(dataset) == 300, f"Expected length 300, got {len(dataset)}" 
-
-        # Test attribute names
         attribute_names = dataset.get_attribute_names()
         expected_names = ["5_o_Clock_Shadow", "Arched_Eyebrows", "Attractive", "Bags_Under_Eyes", "Bald", "Bangs", "Big_Lips", "Big_Nose", "Black_Hair", "Blond_Hair", "Blurry", "Brown_Hair", "Bushy_Eyebrows", "Chubby", "Double_Chin", "Eyeglasses", "Goatee", "Gray_Hair", "Heavy_Makeup", "High_Cheekbones", "Male", "Mouth_Slightly_Open", "Mustache", "Narrow_Eyes", "No_Beard", "Oval_Face", "Pale_Skin", "Pointy_Nose", "Receding_Hairline", "Rosy_Cheeks", "Sideburns", "Smiling", "Straight_Hair", "Wavy_Hair", "Wearing_Earrings", "Wearing_Hat", "Wearing_Lipstick", "Wearing_Necklace", "Wearing_Necktie", "Young"]
         assert attribute_names == expected_names, f"Expected {expected_names}, got {attribute_names}"
         
-        # Test getting an item
-        image, attributes = dataset[0]
+        image, attributes, mask = dataset[0]
         assert isinstance(image, torch.Tensor), "Image should be a torch.Tensor"
         assert isinstance(attributes, torch.Tensor), "Attributes should be a torch.Tensor"
+        assert isinstance(mask, torch.Tensor), "Mask should be a torch.Tensor"
         assert image.shape == (3, 256, 256), f"Expected image shape (3, 256, 256), got {image.shape}"
         assert attributes.shape == (40,), f"Expected attributes shape (40,), got {attributes.shape}"
-        
-        # Print first image and attributes
-        print(f"First image: {image}")
-        print(f"First attributes: {attributes}")
-
+        assert mask.shape == (1, 256, 256), f"Expected mask shape (1, 256, 256), got {mask.shape}"
+        print(f"First mask unique class indices: {torch.unique(mask)}")
         print("✅ All tests passed!")
         
     except Exception as e:
         print(f"❌ Test failed: {str(e)}")
         sys.exit(1)
-    
