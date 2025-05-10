@@ -1,5 +1,24 @@
 # Update LoRa Epoch to 10 
 # Attribute conditions aligned with CelebA dataset
+import os 
+
+# Redirect temp storage used by Python & huggingface_hub
+os.environ["TMPDIR"] = "/scratch/dr00732/"  # ✅ create this folder if it doesn't exist
+
+# Then configure Hugging Face as before
+os.environ["HF_HOME"] = "/scratch/dr00732/"
+os.environ["TRANSFORMERS_CACHE"] = os.path.join(os.environ["HF_HOME"], "transformers")
+os.environ["DIFFUSERS_CACHE"] = os.path.join(os.environ["HF_HOME"], "diffusers")
+os.environ["HF_HUB_CACHE"] = os.path.join(os.environ["HF_HOME"], "hub")
+
+# Create folders if they don't exist
+os.makedirs(os.environ["TMPDIR"], exist_ok=True)
+os.makedirs(os.environ["HF_HUB_CACHE"], exist_ok=True)
+
+# Set environment variables for better performance
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 from transformers import CLIPTextModel, CLIPTokenizer
 from diffusers import StableDiffusionPipeline, DDPMScheduler, UNet2DConditionModel
 import copy
@@ -21,23 +40,6 @@ import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
 import pandas as pd
 from typing import List, Tuple, Dict
-
-# Redirect temp storage used by Python & huggingface_hub
-os.environ["TMPDIR"] = "/scratch/dr00732/"  # ✅ create this folder if it doesn't exist
-
-# Then configure Hugging Face as before
-os.environ["HF_HOME"] = "/scratch/dr00732/"
-os.environ["TRANSFORMERS_CACHE"] = os.path.join(os.environ["HF_HOME"], "transformers")
-os.environ["DIFFUSERS_CACHE"] = os.path.join(os.environ["HF_HOME"], "diffusers")
-os.environ["HF_HUB_CACHE"] = os.path.join(os.environ["HF_HOME"], "hub")
-
-# Create folders if they don't exist
-os.makedirs(os.environ["TMPDIR"], exist_ok=True)
-os.makedirs(os.environ["HF_HUB_CACHE"], exist_ok=True)
-
-# Set environment variables for better performance
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Enhanced Conditional dataset class with stronger augmentation
 class PromptedAttributeDataset(Dataset):
@@ -361,7 +363,7 @@ def main():
     # Enhanced training configuration with optimized hyperparameters for CelebA faces with attributes
     config = {
         "model_id": "stabilityai/stable-diffusion-2-base",
-        "num_epochs": 25,  # Increased to 25 epochs for better learning
+        "num_epochs": 10,   
         "train_batch_size": 4,
         "eval_batch_size": 2,
         "learning_rate": 3e-4,  # Increased learning rate for better convergence
@@ -392,9 +394,9 @@ def main():
         "lora_alpha": 48,  # Increased from 32 to 48 (maintaining alpha/r = 3) # Reduced from 72 to 48
         "lora_dropout": 0.15,  # Slightly higher dropout for regularization
         "image_dir": "/scratch/dr00732/CelebA-HQ-split/train_27000",  # Your image directory
-        "attribute_label_path": "/scratch/dr00732/CelebA/list_attr_celeba.txt",  # Path to attribute labels
+        "attribute_label_path": "/scratch/dr00732/CelebA-HQ-split/CelebAMask-HQ-attribute-anno.txt",  # Path to attribute labels
         # Early stopping parameters
-        "use_early_stopping": True,
+        "use_early_stopping": False,
         "early_stopping_patience": 4,  # Increased patience to allow for learning plateaus
         "early_stopping_threshold": 0.0001,
     }
@@ -694,10 +696,14 @@ def main():
         pipe,
         os.path.join(config["output_dir"], "final_examples"),
         validation_prompts + [
-            "A photo of a person with blonde hair and a smile",
-            "A photo of a person with black hair and eyeglasses",
-            "A photo of a man with a beard and a hat",
-            "A photo of a woman with long hair and earrings"
+            "Attractive young person with arched eyebrows and straight hair, wearing lipstick.",
+            "Blond-haired individual with arched eyebrows and a slight smile, wearing lipstick.",
+            "Young face with high cheekbones and straight hair, wearing earrings and lipstick.",
+            "Black-haired person with bushy eyebrows and a slight smile, wearing lipstick.",
+            "Plain young face with big lips and bushy eyebrows, wearing lipstick.",
+            "Blond-haired individual with high cheekbones, wearing earrings and lipstick.",
+            "Attractive person with tired eyes, wearing lipstick and a necklace.",
+            "Young face with big lips and bushy eyebrows, wearing lipstick."
         ],
         num_per_prompt=2,
         guidance_scales=[5.0, 7.5]  # Test multiple guidance scales
