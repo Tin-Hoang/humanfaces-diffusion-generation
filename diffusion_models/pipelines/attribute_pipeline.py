@@ -136,10 +136,15 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
 
                 with torch.no_grad():
                     encoder_output = base_model(seg_input)
-                    seg_features = encoder_output.last_hidden_state.mean(dim=1)  # [B, seg_dim]
-                
+                    seg_features = encoder_output.last_hidden_state.mean(dim=[2, 3])  # ✅ FIXED
+
+                    print(f"[DEBUG] seg_features.shape: {seg_features.shape}")
+                    print(f"[DEBUG] self.unet.seg_proj.in_features: {self.unet.seg_proj.in_features}")
+
+
                 assert seg_features.shape[1] == self.unet.seg_proj.in_features, \
                     f"Expected seg_features shape [B, {self.unet.seg_proj.in_features}], got {seg_features.shape}"
+
                 
                 seg_embedding = self.unet.seg_proj(seg_features).unsqueeze(1)  # [B, 1, seg_embed_dim]
                 assert seg_embedding.shape[-1] == 128, f"[DEBUG] seg_embedding dim must be 128, got {seg_embedding.shape[-1]}"

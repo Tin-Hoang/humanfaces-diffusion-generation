@@ -8,6 +8,8 @@ from typing import Optional, Union
 from datasets import load_dataset
 from torchvision import transforms
 import os
+from tqdm import tqdm
+from torchvision.utils import save_image
 
 
 def generate_and_calculate_fid(
@@ -248,7 +250,9 @@ def generate_and_calculate_fid_attr_seg(
 
     device = config.device
     total = 0
-    image_list = []
+
+    # Initialize FID metric
+    fid = FrechetInceptionDistance(normalize=True).to(device)
 
     with torch.no_grad():
         for batch in tqdm(val_dataloader, desc="Generating images for FID"):
@@ -268,30 +272,36 @@ def generate_and_calculate_fid_attr_seg(
                 attr_embeds = attributes  # assume already embedded
 
             # Forward generation
-            samples = pipeline(
-                batch_size=bsz,
-                condition_embeddings=attr_embeds,
+            generator = torch.Generator(device=device).manual_seed(config.seed)
+            output = pipeline(
+                attributes=attributes,  # original multi-hot
                 segmentation=seg,
-                generator=torch.manual_seed(config.seed),
-            ).images  # List of PILs or torch tensors depending on pipeline
+                num_inference_steps=config.num_train_timesteps,
+                generator=generator,
+                output_type="pt"
+            )
+
+
+            samples = output["sample"].to(device)  # [B, C, H, W]
+
+            # Convert from [-1, 1] to [0, 1]
+            samples = (samples * 0.5 + 0.5).clamp(0, 1)
 
             # Save generated images
-            for i, sample in enumerate(samples):
-                if isinstance(sample, torch.Tensor):
-                    if sample.ndim == 3:
-                        save_image(sample, os.path.join(output_dir, f"{total+i:05}.png"))
-                else:
-                    sample.save(os.path.join(output_dir, f"{total+i:05}.png"))
+            for i in range(samples.size(0)):
+                save_image(samples[i], os.path.join(output_dir, f"{total+i:05}.png"))
+
+            fid.update(samples, real=False)
 
             total += bsz
 
-    # FID calculation
-    fid_score = fid.compute_fid(
-        fdir1=output_dir,
-        fdir2=config.val_dir,
-        mode="clean",
-        dataset_name=None
-    )
+        # Collect real images from val dataloader
+        for batch in val_dataloader:
+            image = batch[0].to(device) if isinstance(batch, (list, tuple)) else batch["images"].to(device)
+            image = (image * 0.5 + 0.5).clamp(0, 1)
+            fid.update(image, real=True)
 
+    # Calculate FID
+    fid_score = float(fid.compute())
     print(f"\n✅ FID (attribute + segmentation): {fid_score:.2f}")
     return fid_score
