@@ -51,13 +51,18 @@ class UnconditionalCelebADataset(Dataset):
         
         # Add enhanced augmentation if enabled - stronger for facial data
         if augment:
+            # augment_transforms = [
+            #     transforms.RandomHorizontalFlip(p=0.5),
+            #     transforms.ColorJitter(brightness=0.03, contrast=0.03, saturation=0.02, hue=0.01),
+            #     # Add slight rotation for more variety in facial poses
+            #     transforms.RandomAffine(degrees=5, translate=(0.02, 0.02), scale=(0.98, 1.02)),
+            #     # Occasional grayscale to improve robustness
+            #     transforms.RandomGrayscale(p=0.02),
+            # ]
             augment_transforms = [
                 transforms.RandomHorizontalFlip(p=0.5),
-                transforms.ColorJitter(brightness=0.03, contrast=0.03, saturation=0.02, hue=0.01),
-                # Add slight rotation for more variety in facial poses
-                transforms.RandomAffine(degrees=5, translate=(0.02, 0.02), scale=(0.98, 1.02)),
-                # Occasional grayscale to improve robustness
-                transforms.RandomGrayscale(p=0.02),
+                # ↓ light geometric noise only; colour is left intact
+                transforms.RandomAffine(degrees=3, translate=(0.01, 0.01), scale=(0.99, 1.01)),
             ]
             base_transforms.extend(augment_transforms)
             
@@ -86,6 +91,13 @@ class UnconditionalCelebADataset(Dataset):
             "pixel_values": image,
             "prompt": ""  # Empty prompt for unconditional generation
         }
+    
+# Function to create a unique seed for each image
+def make_seed(epoch: int, idx: int, extra: int = 0) -> int:
+    # epoch keeps seeds unique across epochs,
+    # idx distinguishes images inside the same batch,
+    # extra lets you vary by guidance‑scale if you like.
+    return epoch * 10_000 + extra * 1_000 + idx
 
 # Enhanced EMA model implementation with better update strategy
 class EMAModel:
@@ -148,10 +160,13 @@ def run_validation(pipeline, num_images, current_epoch, log_to_wandb=True):
     with torch.no_grad():
         for scale in guidance_scales:
             scale_images = []
+            # for j in range(num_images // len(guidance_scales)):
+            #     # Set a fixed seed for reproducible validation across epochs
+            #     generator = torch.Generator(device="cuda").manual_seed(j + 1000)
             for j in range(num_images // len(guidance_scales)):
-                # Set a fixed seed for reproducible validation across epochs
-                generator = torch.Generator(device="cuda").manual_seed(j + 1000)
-                
+                seed = make_seed(current_epoch, j, guidance_scales.index(scale))
+                generator = torch.Generator(device="cuda").manual_seed(seed)
+
                 # Generate image with current model
                 image = pipeline(
                     "",  # Empty prompt for unconditional generation
@@ -169,7 +184,8 @@ def run_validation(pipeline, num_images, current_epoch, log_to_wandb=True):
     # Log to wandb
     if log_to_wandb:
         # Create a grid of images
-        image_grid = create_image_grid(images)
+        #image_grid = create_image_grid(images)
+        image_grid = create_image_grid(images, nrow=4)
         wandb.log({
             "validation_images": wandb.Image(image_grid, caption=f"Epoch {current_epoch}"),
             "epoch": current_epoch,
@@ -197,7 +213,8 @@ def train_one_epoch(dataloader, pipeline, optimizer, lr_scheduler, scaler, epoch
         optimizer.zero_grad()
         
         # Get images from the batch
-        images = batch['pixel_values'].to(pipeline.device).to(torch.float16)
+        #images = batch['pixel_values'].to(pipeline.device).to(torch.float16)
+        images = batch["pixel_values"].to(pipeline.device, dtype=torch.float32)
         
         # Tokenize empty prompts for unconditional generation
         empty_prompts = [""] * images.shape[0]
@@ -212,39 +229,52 @@ def train_one_epoch(dataloader, pipeline, optimizer, lr_scheduler, scaler, epoch
         # Use mixed precision for better memory efficiency
         with autocast(device_type='cuda', dtype=torch.float16):
             # 1. Encode images with VAE
+            # with torch.no_grad():
+            #     latent_images = pipeline.vae.encode(images).latent_dist.sample() * pipeline.vae.config.scaling_factor
             with torch.no_grad():
-                latent_images = pipeline.vae.encode(images).latent_dist.sample() * pipeline.vae.config.scaling_factor
-            
+                latent_images = (
+                    pipeline.vae.encode(images).latent_dist.sample()
+                    * pipeline.vae.config.scaling_factor
+                ).to(torch.float16)   # now switch to fp16
+
             # 2. Get noise and timesteps with enhanced noise schedule
             noise = torch.randn_like(latent_images)
             bsz = latent_images.shape[0]
             
-            # Improved weighted timestep sampling strategy
-            # This focuses more on challenging timesteps based on current epoch
-            if epoch < config["num_epochs"] // 3:
-                # Early epochs: focus more on mid and late timesteps
-                weights = torch.ones((pipeline.scheduler.config.num_train_timesteps,))
-                mid_point = pipeline.scheduler.config.num_train_timesteps // 2
-                weights[mid_point:] = 2.5  # Higher weight for second half of timesteps
-            elif epoch < config["num_epochs"] * 2 // 3:
-                # Mid epochs: focus more on mid timesteps for detail learning
-                weights = torch.ones((pipeline.scheduler.config.num_train_timesteps,))
-                quarter = pipeline.scheduler.config.num_train_timesteps // 4
-                weights[quarter:3*quarter] = 3.0  # Higher weight for middle half
-            else:
-                # Late epochs: focus on early timesteps for fine details
-                weights = torch.ones((pipeline.scheduler.config.num_train_timesteps,))
-                quarter = pipeline.scheduler.config.num_train_timesteps // 4
-                weights[:quarter] = 1.5  # Higher weight for early timesteps
-                weights[quarter:2*quarter] = 2.5  # Even higher for early-mid
+            # # Improved weighted timestep sampling strategy
+            # # This focuses more on challenging timesteps based on current epoch
+            # if epoch < config["num_epochs"] // 3:
+            #     # Early epochs: focus more on mid and late timesteps
+            #     weights = torch.ones((pipeline.scheduler.config.num_train_timesteps,))
+            #     mid_point = pipeline.scheduler.config.num_train_timesteps // 2
+            #     weights[mid_point:] = 2.5  # Higher weight for second half of timesteps
+            # elif epoch < config["num_epochs"] * 2 // 3:
+            #     # Mid epochs: focus more on mid timesteps for detail learning
+            #     weights = torch.ones((pipeline.scheduler.config.num_train_timesteps,))
+            #     quarter = pipeline.scheduler.config.num_train_timesteps // 4
+            #     weights[quarter:3*quarter] = 3.0  # Higher weight for middle half
+            # else:
+            #     # Late epochs: focus on early timesteps for fine details
+            #     weights = torch.ones((pipeline.scheduler.config.num_train_timesteps,))
+            #     quarter = pipeline.scheduler.config.num_train_timesteps // 4
+            #     weights[:quarter] = 1.5  # Higher weight for early timesteps
+            #     weights[quarter:2*quarter] = 2.5  # Even higher for early-mid
             
-            # Sample according to weights
-            timestep_indices = torch.multinomial(
-                weights.to(pipeline.device), 
-                bsz, 
-                replacement=True
-            )
-            timesteps = timestep_indices.long()
+            # # Sample according to weights
+            # timestep_indices = torch.multinomial(
+            #     weights.to(pipeline.device), 
+            #     bsz, 
+            #     replacement=True
+            # )
+            # timesteps = timestep_indices.long()
+
+            timesteps = torch.randint(
+                0,
+                pipeline.scheduler.config.num_train_timesteps,
+                (bsz,),
+                device=pipeline.device,
+            ).long()
+
             
             # 3. Add noise to latents according to diffusion schedule
             noisy_latent_images = pipeline.scheduler.add_noise(latent_images, noise, timesteps)
@@ -336,7 +366,7 @@ def main():
         "output_dir": "./sd_lora_unconditional_faces_output",
         "logging_dir": "./unconditional_faces_logs",
         "save_every_n_epochs": 1,
-        "num_validation_images": 8,  # Increased validation images
+        "num_validation_images": 16,  # Increased validation images
         "unconditional_guidance_scale": 1.5,  # Slightly increased for faces
         "grad_clip_value": 1.0,
         "use_ema": True,
@@ -346,7 +376,7 @@ def main():
         "run_name": "unconditional_stable_diffusion_lora",  # Updated for wandb
         # Enhanced LoRA parameters
         "lora_rank": 24,  # Increased from 16 to 24
-        "lora_alpha": 72,  # Increased from 32 to 72 (maintaining alpha/r = 3)
+        "lora_alpha": 48,   
         "lora_dropout": 0.15,  # Slightly higher dropout for regularization
         "image_dir": "/scratch/dr00732/CelebA-HQ-split/train_27000",  # Your image directory
         # Early stopping parameters
@@ -600,8 +630,10 @@ def main():
                 scale_images = []
                 for j in range(num_samples):
                     # Set a fixed seed for reproducibility
-                    generator = torch.Generator(device="cuda").manual_seed(j + 2000)
-                    
+                    #generator = torch.Generator(device="cuda").manual_seed(j + 2000)
+                    seed = make_seed(9999, j, guidance_scales.index(scale))  # 9999 just tags this as "final"
+                    generator = torch.Generator(device="cuda").manual_seed(seed)
+
                     image = pipeline(
                         "",  # Empty prompt for unconditional generation
                         num_inference_steps=50,
