@@ -121,6 +121,9 @@ class TrainingConfig:
         if not self.val_dir or not os.path.exists(self.val_dir):
             # Warn the user that the validation directory does not exist
             print(f"Warning: Validation directory not inputted or not found: {self.val_dir}")
+
+        if not self.is_conditional:
+            self.conditioning_type = "unconditional"
             
         # Set up conditional generation parameters
         if self.is_conditional:

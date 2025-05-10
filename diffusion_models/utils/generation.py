@@ -1,5 +1,5 @@
 import torch
-from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDIMScheduler, DDPMScheduler
+from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDIMScheduler, DDPMScheduler,DiTTransformer2DModel
 from typing import Optional, Dict, Union
 from PIL import Image
 import numpy as np
