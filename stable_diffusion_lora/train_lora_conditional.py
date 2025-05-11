@@ -224,7 +224,7 @@ def train_one_epoch(dataloader, pipeline, optimizer, lr_scheduler, scaler, epoch
     
     # Get tokenizer
     tokenizer = pipeline.tokenizer
-    
+
     for step, batch in enumerate(progress_bar):
         # Zero gradients at the start of each step
         optimizer.zero_grad()
@@ -234,7 +234,28 @@ def train_one_epoch(dataloader, pipeline, optimizer, lr_scheduler, scaler, epoch
         images = batch["pixel_values"].to(pipeline.device, dtype=torch.float32)
         
         prompts = batch['prompt']
-        
+        # Check if images are in the expected range | [-1, 1] | Debugging
+        if step == 0 and epoch == 0:  # Only run once to avoid performance impact
+            print("🔍 Running VAE normalization/debug check...")
+
+            # Save original image (de-normalized for viewing)
+            img_vis = (images[:4] * 0.5 + 0.5).clamp(0, 1)  # Convert [-1,1] → [0,1]
+            grid_original = make_grid(img_vis, nrow=2)
+            save_image(grid_original, "debug_original_images.png")
+
+            with torch.no_grad():
+                # VAE encode-decode cycle
+                latents = pipeline.vae.encode(images[:4]).latent_dist.sample()
+                latents = latents / pipeline.vae.config.scaling_factor
+                decoded = pipeline.vae.decode(latents).sample
+
+                # Rescale from [-1, 1] → [0, 1]
+                decoded = (decoded * 0.5 + 0.5).clamp(0, 1)
+                grid_decoded = make_grid(decoded, nrow=2)
+                save_image(grid_decoded, "debug_vae_decoded_images.png")
+            
+            print("✅ Saved debug images: 'debug_original_images.png' and 'debug_vae_decoded_images.png'")
+
         # Tokenize prompts
         text_inputs = tokenizer(
             prompts,
