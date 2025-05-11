@@ -82,6 +82,24 @@ def parse_args():
         default=256,
         help="Size of generated images"
     )
+    
+    parser.add_argument(
+        "--elastic-transform",
+        type=float,
+        default=250.0,
+        action="store_true",
+        help="elastic transform for data augmentation",
+    )
+    parser.add_argument(
+        "--color-jitter",
+        action="store_true",
+        help="randomly change the brightness, contrast and saturation",
+    )
+    parser.add_argument(
+        "--color-aug",
+        action="store_true",
+        help="randomly alter the intensities of RGB channels",
+    )
 
     return parser.parse_args()
 

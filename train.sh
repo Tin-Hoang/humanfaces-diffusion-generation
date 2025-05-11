@@ -10,13 +10,13 @@
 # Training with parameters
 python3 scripts/train.py \
     --model unet_notebook \
-    --run-name "unet2d_128_ddpm_2700train/agmen1" \
+    --run-name "unet2d_128_ddpm_2700train" \
     --image-size 128 \
-    --train-batch-size 8 \
-    --eval-batch-size 8 \
+    --train-batch-size 16 \
+    --eval-batch-size 16 \
     --num-epochs 100 \
     --gradient-accumulation-steps 1 \
-    --learning-rate 8e-5 \
+    --learning-rate 1e-4 \
     --weight-decay 1e-2 \
     --lr-warmup-steps 500 \
     --save-image-epochs 5 \
@@ -32,4 +32,4 @@ python3 scripts/train.py \
     --use-wandb True \
     --wandb-project "EEEM068_Diffusion_Models" \
     --wandb-entity "tin-hoang"
-   
+
