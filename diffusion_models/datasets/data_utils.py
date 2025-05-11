@@ -18,6 +18,8 @@ def get_preprocess_transform(image_size: int) -> transforms.Compose:
         transforms.Resize((image_size, image_size), interpolation=InterpolationMode.LANCZOS),  # Resize to target size
         transforms.RandomHorizontalFlip(),  # Random horizontal flip
         transforms.ToTensor(),  # Convert to tensor in [0, 1] range
+        transforms.ColorJitter(),
+        transforms.ElasticTransform(alpha=250.0),
         transforms.Normalize([0.5], [0.5]),  # Normalize to [-1, 1] range
     ])
 
