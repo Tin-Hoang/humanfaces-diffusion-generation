@@ -541,14 +541,14 @@ def main():
     
     # Prepare validation prompts
     validation_prompts = [
-        "A photo of a person with black hair",
-        "A photo of a person with blonde hair",
-        "A photo of a person with eyeglasses",
-        "A photo of a person with a beard",
-        "A photo of a person with a hat",
-        "A photo of a person with a smile",
-        "A photo of a woman with long hair",
-        "A photo of a man with short hair"
+            "Attractive young person with arched eyebrows and straight hair, wearing lipstick.",
+            "Blond-haired individual with arched eyebrows and a slight smile, wearing lipstick.",
+            "Young face with high cheekbones and straight hair, wearing earrings and lipstick.",
+            "Black-haired person with bushy eyebrows and a slight smile, wearing lipstick.",
+            "Plain young face with big lips and bushy eyebrows, wearing lipstick.",
+            "Blond-haired individual with high cheekbones, wearing earrings and lipstick.",
+            "Attractive person with tired eyes, wearing lipstick and a necklace.",
+            "Young face with big lips and bushy eyebrows, wearing lipstick."
     ]
     
     # Run initial validation with random weights
