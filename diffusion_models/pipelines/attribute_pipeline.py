@@ -88,20 +88,18 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         self.attribute_embedder.eval()
 
         try:
-            # Validate input
             batch_size = attributes.size(0)
             if attributes.size(1) != 40:
                 raise ValueError("Attributes tensor must have shape (batch_size, 40)")
 
-            # Move to device and dtype
             device = self.unet.device
             dtype = self.unet.dtype
             attributes = attributes.to(device, dtype)
 
             if generator is None:
                 generator = torch.Generator(device=device).manual_seed(42)
-            # Sample initial noise in latent space
-            latent_size = self.unet.config.sample_size  # Should be image_size/8
+
+            latent_size = self.unet.config.sample_size
             latents = torch.randn(
                 (batch_size, self.unet.config.in_channels, latent_size, latent_size),
                 device=device,
@@ -109,17 +107,21 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
                 generator=generator
             )
 
-            # Set timesteps for sampling
             self.scheduler.set_timesteps(num_inference_steps, device=device)
             timesteps = self.scheduler.timesteps
-
-            # Scale the initial noise
             latents = latents * self.scheduler.init_noise_sigma
 
-            # Project attributes to conditioning input
-            # === Begin Conditioning Setup ===
-            cond_attr = self.attribute_embedder(attributes)  # [B, 1, attr_dim]
-            assert cond_attr.shape[-1] == 128, f"[DEBUG] Attribute embedding dim must be 128, got {cond_attr.shape[-1]}"
+            attr_emb = self.attribute_embedder(attributes)  # [B, 1, attr_dim]
+            attr_dim = attr_emb.shape[-1]
+
+            # Handle list-valued cross_attention_dim (e.g., [256, 256, 256, 256])
+            expected_dim = self.unet.config.cross_attention_dim
+            if isinstance(expected_dim, list):
+                expected_dim = next((d for d in expected_dim if d is not None), None)
+            if expected_dim is None:
+                raise ValueError("cross_attention_dim is None. Please check model config.")
+
+           
 
             if segmentation is not None:
                 if segmentation.dim() != 4:
@@ -136,32 +138,39 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
 
                 with torch.no_grad():
                     encoder_output = base_model(seg_input)
-                    seg_features = encoder_output.last_hidden_state.mean(dim=[2, 3])  # ✅ FIXED
+                    seg_features = encoder_output.last_hidden_state.mean(dim=[2, 3])  # [B, C]
+                    seg_emb = self.unet.seg_proj(seg_features).unsqueeze(1)  # [B, 1, seg_dim]
 
-                    print(f"[DEBUG] seg_features.shape: {seg_features.shape}")
-                    print(f"[DEBUG] self.unet.seg_proj.in_features: {self.unet.seg_proj.in_features}")
+                combined = torch.cat([attr_emb, seg_emb], dim=-1)  # [B, 1, attr_dim + seg_dim]
 
+                if hasattr(self.unet, "combined_proj"):
+                    cond = self.unet.combined_proj(combined)
+                else:
+                    current_dim = combined.shape[-1]
+                    if current_dim < expected_dim:
+                        padding = torch.zeros(combined.shape[0], 1, expected_dim - current_dim, device=combined.device)
+                        cond = torch.cat([combined, padding], dim=-1)
+                    elif current_dim > expected_dim:
+                        cond = combined[:, :, :expected_dim]
+                    else:
+                        cond = combined
 
-                assert seg_features.shape[1] == self.unet.seg_proj.in_features, \
-                    f"Expected seg_features shape [B, {self.unet.seg_proj.in_features}], got {seg_features.shape}"
-
-                
-                seg_embedding = self.unet.seg_proj(seg_features).unsqueeze(1)  # [B, 1, seg_embed_dim]
-                assert seg_embedding.shape[-1] == 128, f"[DEBUG] seg_embedding dim must be 128, got {seg_embedding.shape[-1]}"
-
-                # Combine attribute and segmentation
-                cond = torch.cat([cond_attr, seg_embedding], dim=-1)  # [B, 1, 256]
             else:
-                # Attribute-only conditioning
-                cond = cond_attr  # [B, 1, 128]
-                # Pad with zeros to reach [B, 1, 256]
-                padding = torch.zeros(cond.shape[0], 1, 128, device=cond.device, dtype=cond.dtype)
-                cond = torch.cat([cond, padding], dim=-1)  # [B, 1, 256]
+                # Attribute-only mode
+                if attr_dim < expected_dim:
+                    pad = expected_dim - attr_dim
+                    padding = torch.zeros(attr_emb.shape[0], 1, pad, device=attr_emb.device, dtype=attr_emb.dtype)
+                    cond = torch.cat([attr_emb, padding], dim=-1)
+                elif attr_dim > expected_dim:
+                    cond = attr_emb[:, :, :expected_dim]
+                else:
+                    cond = attr_emb
 
-            # Repeat for all cross-attn layers (UNet expects [B, 4, 256])
             cond = cond.repeat(1, 4, 1)
-            assert cond.shape == (batch_size, 4, 256), f"Final cond shape mismatch: {cond.shape}"
-# === End Conditioning Setup ===
+            assert cond.shape == (batch_size, 4, expected_dim), \
+                f"Final cond shape mismatch: got {cond.shape}, expected ({batch_size}, 4, {expected_dim})"
+
+
 
 
 

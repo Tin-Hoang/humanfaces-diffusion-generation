@@ -7,13 +7,13 @@ import torch.nn.functional as F
 from accelerate import Accelerator
 from diffusers import DDPMPipeline, VQModel
 import wandb
+import torch.nn as nn
+
 
 from diffusion_models.utils.generation import generate_grid_images, generate_grid_images_attributes
-from diffusion_models.utils.metrics import generate_and_calculate_fid, generate_and_calculate_fid_attributes,generate_and_calculate_fid_attr_seg
+from diffusion_models.utils.metrics import generate_and_calculate_fid, generate_and_calculate_fid_attributes, generate_and_calculate_fid_attr_seg
 from diffusion_models.pipelines.attribute_pipeline import AttributeDiffusionPipeline
 from diffusion_models.losses.info_nce import info_nce
-
-
 
 def train_loop(
     config,
@@ -101,7 +101,8 @@ def train_loop(
 
             with accelerator.accumulate(model):
                 if is_conditional and attribute_embedder is not None:
-                    encoder_hidden_states = attribute_embedder(attributes)
+                    attr_emb = attribute_embedder(attributes)
+                    attr_emb = attr_emb.squeeze(1) if attr_emb.dim() == 3 else attr_emb
 
                     if config.conditioning_type in ["segmentation", "combined"]:
                         if hasattr(model, "segmentation_encoder") and model.segmentation_encoder is not None:
@@ -115,29 +116,44 @@ def train_loop(
                                     raise ValueError("SegFormer encoder does not have 'base_model'")
 
                                 hidden_states = base_model(seg_input)
-                                final_hidden = hidden_states[-1]  # Last feature map: [B, C, H, W]
+                                final_hidden = hidden_states[-1]
                                 seg_features = F.adaptive_avg_pool2d(final_hidden, output_size=(1, 1)).squeeze(-1).squeeze(-1)
+                                seg_emb = model.seg_proj(seg_features)
+                                seg_emb = seg_emb.squeeze(1) if seg_emb.dim() == 3 else seg_emb
 
-                            print(f"[DEBUG] seg_features shape: {seg_features.shape}, seg_proj expects: {model.seg_proj.in_features}")
-                            assert seg_features.shape[1] == model.seg_proj.in_features, \
-                                f"Mismatch: got {seg_features.shape[1]}, expected {model.seg_proj.in_features}"
+                    if config.conditioning_type == "attribute":
+                        encoder_hidden_states = attr_emb.unsqueeze(1).repeat(1, 4, 1)
 
-                            seg_embedding = model.seg_proj(seg_features).unsqueeze(1)
-                            if config.conditioning_type == "combined":
-                                encoder_hidden_states = torch.cat([encoder_hidden_states, seg_embedding], dim=-1)
+                    elif config.conditioning_type == "segmentation":
+                        encoder_hidden_states = seg_emb.unsqueeze(1).repeat(1, 4, 1)
+
+                    elif config.conditioning_type == "combined":
+                        combined = torch.cat([attr_emb, seg_emb], dim=1)
+
+                        # Inside the training loop, where combined = torch.cat(...) is used:
+                        if not hasattr(model, "combined_proj"):
+                            if isinstance(config.cross_attention_dim, list):
+                                out_dim = [d for d in config.cross_attention_dim if d is not None][0]
                             else:
-                                encoder_hidden_states = seg_embedding
+                                out_dim = config.cross_attention_dim
+                            model.combined_proj = nn.Linear(combined.shape[-1], out_dim).to(combined.device)
 
-                    noise_pred = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states, return_dict=False)[0]
-                else:
+
+                        combined = model.combined_proj(combined)
+                        encoder_hidden_states = combined.unsqueeze(1).repeat(1, 4, 1)
+
+                    else:
+                        raise ValueError(f"Unsupported conditioning_type: {config.conditioning_type}")
+
                     if "dit" in config.model.lower():
                         dummy_labels = torch.zeros(noisy_images.shape[0], dtype=torch.long, device=noisy_images.device)
                         noise_pred = model(noisy_images, timesteps, class_labels=dummy_labels, return_dict=False)[0]
                     else:
-                        noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
+                        noise_pred = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states, return_dict=False)[0]
 
                 if is_conditional and config.use_embedding_loss:
-                    encoder_hidden_states = encoder_hidden_states.squeeze(1)
+                    if encoder_hidden_states.dim() == 3:
+                        encoder_hidden_states = encoder_hidden_states.mean(dim=1)
                     embedding_loss = info_nce(encoder_hidden_states, attributes)
                     diffusion_loss = F.mse_loss(noise_pred, noise)
                     loss = diffusion_loss + config.embedding_loss_lambda * embedding_loss
@@ -159,6 +175,8 @@ def train_loop(
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
             global_step += 1
+
+
 
 
         if accelerator.is_main_process:
