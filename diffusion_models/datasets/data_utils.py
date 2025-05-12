@@ -62,3 +62,20 @@ def transform(examples: Dict[str, Any], preprocess: transforms.Compose) -> Dict[
     """
     images = [preprocess(image.convert("RGB")) for image in examples["image"]]
     return {"images": images}
+
+
+def get_inference_transform(image_size: int) -> transforms.Compose:
+    """Get transform for test images / generation process.
+
+    Args:
+        image_size: Target size for the images
+        
+    Returns:
+        Test transform
+    """
+    transform = transforms.Compose([
+        transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.LANCZOS),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+    return transform
