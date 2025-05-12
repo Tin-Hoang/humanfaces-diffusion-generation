@@ -141,9 +141,11 @@ def train_loop(
 
                         combined = model.combined_proj(combined)
                         encoder_hidden_states = combined.unsqueeze(1).repeat(1, 4, 1)
-
                     else:
                         raise ValueError(f"Unsupported conditioning_type: {config.conditioning_type}")
+
+                    # Forward pass
+                    noise_pred = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states, return_dict=False)[0]
                 else:
                     # For unconditional model
                     if "dit" in config.model.lower():

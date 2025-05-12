@@ -31,5 +31,4 @@ python scripts/train.py \
     --seed 42 \
     --use-wandb True \
     --wandb-project "EEEM068_Diffusion_Models" \
-    --wandb-entity "tin-hoang" \
-   
+    --wandb-entity "tin-hoang"
