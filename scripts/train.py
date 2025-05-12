@@ -3,20 +3,9 @@
 from datetime import datetime
 import wandb
 import torch
-from diffusers import AutoencoderKL, VQModel
 
-from diffusion_models.config import parse_args
-from diffusion_models.datasets.dataloader import setup_dataloader, create_attribute_dataloader
-from diffusion_models.training_loop import train_loop
-from diffusion_models.noise_schedulers.ddim_scheduler import create_ddim_scheduler
-from diffusion_models.noise_schedulers.ddpm_scheduler import create_ddpm_scheduler
 from ema_pytorch import EMA
-
 from diffusers.optimization import get_cosine_schedule_with_warmup
-from diffusion_models.utils.attribute_utils import (
-    create_sample_attributes,
-    create_multi_hot_attributes
-)
 
 from diffusion_models.config import parse_args
 from diffusion_models.datasets.dataloader import setup_dataloader, create_attribute_dataloader
@@ -24,6 +13,11 @@ from diffusion_models.training_loop import train_loop
 from diffusion_models.noise_schedulers.ddim_scheduler import create_ddim_scheduler
 from diffusion_models.noise_schedulers.ddpm_scheduler import create_ddpm_scheduler
 from diffusion_models.models.model_factory import ModelFactory
+from diffusion_models.utils.attribute_utils import (
+    create_sample_attributes,
+    create_multi_hot_attributes
+)
+
 
 
 def main():
@@ -49,7 +43,7 @@ def main():
     elif isinstance(config.cross_attention_dim, int):
     # Default to 4-block architecture
         config.cross_attention_dim = [config.cross_attention_dim] * 4
- 
+
 
 
     # Optionally print for verification
@@ -70,110 +64,8 @@ def main():
     # Create model and noise scheduler
     model, attribute_embedder, vae = None, None, None
 
-    # Load model and any related components
-    if config.model == "unet_notebook":
-        from diffusion_models.models.unconditional.unet_notebook import create_model
-        model = create_model(config)
-
-    elif config.model == "unet_notebook_r1":
-        from diffusion_models.models.unconditional.unet_notebook_r1 import create_model
-        model = create_model(config)
-
-    elif config.model == "unet_notebook_r2":
-        from diffusion_models.models.unconditional.unet_notebook_r2 import create_model
-        model = create_model(config)
-
-    elif config.model == "unet_notebook_r3":
-        from diffusion_models.models.unconditional.unet_notebook_r3 import create_model
-        model = create_model(config)
-
-    elif config.model == "unet_notebook_r4":
-        from diffusion_models.models.unconditional.unet_notebook_r4 import create_model
-        model = create_model(config)
-
-    elif config.model == "unet_notebook_r5":
-        from diffusion_models.models.unconditional.unet_notebook_r5 import create_model
-        model = create_model(config)
-
-    elif config.model in ["conditional_unet", "pc_unet_1"]:
-        from diffusion_models.models.conditional.pc_unet_1 import create_model
-        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
-        model = create_model(config)
-        attribute_embedder = AttributeEmbedder(
-            input_dim=config.num_attributes,
-            hidden_dim=256
-        )
-
-    elif config.model in ["latent_conditional_unet", "lc_unet_1"]:
-        from diffusion_models.models.conditional.lc_unet_1 import create_model
-        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
-        model = create_model(config)
-        vae = AutoencoderKL.from_pretrained(
-            "stable-diffusion-v1-5/stable-diffusion-v1-5",
-            subfolder="vae",
-            torch_dtype=torch.float32
-        )
-        vae = vae.to(config.device)
-        attribute_embedder = AttributeEmbedder(
-            input_dim=config.num_attributes,
-            hidden_dim=256
-        )
-
-    elif config.model == "lc_unet_2":
-        from diffusion_models.models.conditional.lc_unet_2 import create_model
-        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
-        model = create_model(config)
-        vae = VQModel.from_pretrained(
-            "CompVis/ldm-celebahq-256",
-            subfolder="vqvae",
-            torch_dtype=torch.float32
-        )
-        vae = vae.to(config.device)
-        vae.eval()
-        vae.requires_grad_(False)
-        attribute_embedder = AttributeEmbedder(
-            input_dim=config.num_attributes,
-            hidden_dim=128
-        )
-
-    elif config.model == "lc_unet_3_vqvae":
-        from diffusion_models.models.conditional.lc_unet_3_vqvae import create_model
-        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
-        model = create_model(config)
-        vae = VQModel.from_pretrained(
-            "CompVis/ldm-celebahq-256",
-            subfolder="vqvae",
-            torch_dtype=torch.float32
-        )
-        vae = vae.to(config.device)
-        vae.eval()
-        vae.requires_grad_(False)
-        attribute_embedder = AttributeEmbedder(
-            input_dim=config.num_attributes,
-            num_layers=3,
-            hidden_dim=256
-        )
-
-    elif config.model == "lc_unet_4_vqvae":
-        from diffusion_models.models.conditional.lc_unet_4_vqvae import create_model
-        from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
-        model = create_model(config)
-        vae = VQModel.from_pretrained(
-            "CompVis/ldm-celebahq-256",
-            subfolder="vqvae",
-            torch_dtype=torch.float32
-        )
-        vae = vae.to(config.device)
-        vae.eval()
-        vae.requires_grad_(False)
-        attribute_embedder = AttributeEmbedder(
-            input_dim=config.num_attributes,
-            num_layers=3,
-            hidden_dim=256
-        )
-
-    else:
-        raise ValueError(f"Invalid model type: {config.model}")
+    # Create model and noise scheduler using the model factory
+    model, attribute_embedder, vae = ModelFactory.create_model(config)
 
  # Setup Exponential Moving Average
     ema = EMA(model, beta=0.9999, update_after_step=0, update_every=1) if config.use_ema else None

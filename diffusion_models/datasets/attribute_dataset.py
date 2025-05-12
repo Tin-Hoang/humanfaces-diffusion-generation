@@ -21,7 +21,7 @@ class AttributeDataset(Dataset):
         attribute_label_path (str): Path to the attribute label file
         image_size (int): Size to resize images to (both height and width)
         transform (Optional[transforms.Compose]): Optional transforms to apply to images
-
+        mask_dir (Optional[str]): Directory containing the segmentation masks
      """
 
 
