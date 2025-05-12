@@ -35,9 +35,6 @@ def main():
         print(f"\t{key}: {value}")
     print("=" * 80)
 
-    # Create model and noise scheduler
-    model, attribute_embedder, vae = None, None, None
-
     # Create model and noise scheduler using the model factory
     model, attribute_embedder, vae = ModelFactory.create_model(config)
 
