@@ -58,6 +58,7 @@ class TrainingConfig:
     num_attributes: int = 40  # Number of attributes (e.g., 40 for CelebA)
     use_embedding_loss: bool = False  # Whether to calculate embedding loss
     embedding_loss_lambda: float = 1.0  # Lambda for embedding loss
+    finetune_vae: bool = False  # Whether to finetune the VAE
 
     # Grid visualization parameters
     grid_attribute_indices: Optional[List[int]] = None  # Specific attributes for grid visualization
@@ -71,6 +72,13 @@ class TrainingConfig:
     wandb_entity: Optional[str] = "tin-hoang"
     use_ema: bool = False
     use_scale_shift_norm: bool = False
+
+    # Transformer-specific parameters (only used if model == "dit_transformer")
+    embed_dim: int = 512
+    depth: int = 12
+    num_heads: int = 8
+    patch_size: int = 16
+    img_size: int = 256
 
     def __post_init__(self):
         """Set default output_dir if not provided."""
@@ -200,7 +208,8 @@ def parse_args() -> TrainingConfig:
                     help="Noise scheduler type to use")
     parser.add_argument("--num-train-timesteps", type=int, default=defaults["num_train_timesteps"],
                     help="Number of diffusion timesteps used during training")
-
+    parser.add_argument("--finetune-vae", type=str2bool, default=defaults["finetune_vae"],
+                    help="Enable finetuning of the VAE")
 
 
     args = parser.parse_args()

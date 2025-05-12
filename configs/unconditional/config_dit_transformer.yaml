@@ -1,0 +1,45 @@
+# configs/config_dit_transformer.yaml
+
+# Specify which model backbone to use.
+model: "dit_transformer"
+
+# Hyperparameters specific to the DiTTransformer2DModel.
+model_params:
+  in_channels: 3         # Number of input channels (e.g., RGB images)
+  embed_dim: 512         # Embedding dimension for patch embeddings
+  depth: 12              # Number of transformer encoder layers
+  num_heads: 8           # Number of attention heads per transformer layer
+  patch_size: 16         # Size of each square patch (image dimensions must be divisible by this)
+  img_size: 256          # Expected image resolution (should be divisible by patch_size)
+
+# Run and experiment settings.
+run_name: "dit_transformer_experiment"
+image_size: 256         # This should match the img_size used in the model parameters.
+
+# Training hyperparameters.
+train_batch_size: 16
+eval_batch_size: 16
+num_epochs: 100
+gradient_accumulation_steps: 1
+learning_rate: 1e-4
+weight_decay: 1e-2
+lr_warmup_steps: 500
+save_image_epochs: 5
+save_model_epochs: 5
+mixed_precision: "fp16"
+
+# Dataset settings.
+dataset_name: "celeba_hq_128_2700train"
+train_dir: "data/celeba_hq_split/train"
+val_dir: "data/celeba_hq_split/test"
+val_n_samples: 100
+
+# Output and logging settings.
+root_output_dir: "/scratch/group_5/diffusion_checkpoints"
+num_train_timesteps: 1000
+seed: 42
+
+# Weights & Biases logging.
+use_wandb: True
+wandb_project: "EEEM068_Diffusion_Models"
+wandb_entity: "tin-hoang"
