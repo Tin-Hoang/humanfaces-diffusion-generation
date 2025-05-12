@@ -3,29 +3,33 @@
 from torchvision import transforms
 from typing import Dict, Any
 from torchvision.transforms import InterpolationMode
-from diffusion_models.config import parse_args
+from diffusion_models.config import parse_args, TrainingConfig
 
-config = parse_args()
 
-def get_preprocess_transform(image_size: int) -> transforms.Compose:
+def get_preprocess_transform(image_size: int, config: TrainingConfig = None) -> transforms.Compose:
     """Get preprocessing transform for images.
-    
+
     Args:
         image_size: Target size for the images
-        
+
     Returns:
         Preprocessing transform
     """
+    if config is None:
+        config = parse_args()
+    print(f"config: {config}")
 
-    # Additional Data Augmentations 
-    if config.color_jitter:
-        transforms.ColorJitter()
-    if config.elastic_transform:
-        transforms.ElasticTransform(alpha=250.0)
-
-    return transforms.Compose([
+    base_transform = [
         transforms.Resize((image_size, image_size), interpolation=InterpolationMode.LANCZOS),  # Resize to target size
         transforms.RandomHorizontalFlip(),  # Random horizontal flip
+    ]
+    # Additional Data Augmentations
+    if config.color_jitter:
+        base_transform.append(transforms.ColorJitter())
+    if config.elastic_transform:
+        base_transform.append(transforms.ElasticTransform(alpha=250.0))
+
+    return transforms.Compose(base_transform + [
         transforms.ToTensor(),  # Convert to tensor in [0, 1] range
         transforms.Normalize([0.5], [0.5]),  # Normalize to [-1, 1] range
     ])
@@ -33,11 +37,11 @@ def get_preprocess_transform(image_size: int) -> transforms.Compose:
 
 def transform(examples: Dict[str, Any], preprocess: transforms.Compose) -> Dict[str, Any]:
     """Apply preprocessing to dataset examples.
-    
+
     Args:
         examples: Dataset examples
         preprocess: Preprocessing transform
-        
+
     Returns:
         Processed examples
     """
@@ -50,7 +54,7 @@ def get_inference_transform(image_size: int) -> transforms.Compose:
 
     Args:
         image_size: Target size for the images
-        
+
     Returns:
         Test transform
     """
