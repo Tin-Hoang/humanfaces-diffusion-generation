@@ -1,10 +1,10 @@
 """Constants for the UI."""
 
 # Default checkpoint directory
-DEFAULT_CHECKPOINT_DIR = "checkpoints/ddpm-celebahq-128-27000train-20250316_141247"
+DEFAULT_CHECKPOINT_DIR = "checkpoints/unet2d_ddpm2000_2000epoch_lr2e-4_20250331_192116"
 
 # Default checkpoint for attribute generation
-DEFAULT_ATTRIBUTE_CHECKPOINT_DIR = "checkpoints/attribute_latentconditionalunet2d_256_ddim_27000train_20250325_235926"
+DEFAULT_ATTRIBUTE_CHECKPOINT_DIR = "checkpoints/attribute_lcunet3vqvae_celebamask_2700train_infonce_20250411_144750"
 
 # Default generation parameters
 DEFAULT_NUM_STEPS = 100
