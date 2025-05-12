@@ -7,6 +7,8 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 import numpy as np
 
+from diffusion_models.datasets.data_utils import get_inference_transform
+
 
 class AttributeDataset(Dataset):
     """Dataset class for loading images with attribute labels.
@@ -29,11 +31,7 @@ class AttributeDataset(Dataset):
         transform: Optional[transforms.Compose] = None
     ):
         self.image_dir = image_dir
-        self.transform = transform or transforms.Compose([
-            transforms.Resize((image_size, image_size), interpolation=transforms.InterpolationMode.LANCZOS),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        ])
+        self.transform = transform or get_inference_transform(image_size)
         
         # Get list of existing images in the directory
         existing_images = set(f"{f}" for f in os.listdir(image_dir) if f.endswith('.jpg'))
