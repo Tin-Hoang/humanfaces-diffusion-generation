@@ -37,6 +37,8 @@ Sample generated human faces through training epochs.
      - [4.2.1 Generation using the Gradio UI](#421-generation-using-the-gradio-ui)
      - [4.2.2 Generation using the command line script](#422-generation-using-the-command-line-script)
      - [4.2.3 Attribute-Based Generation](#423-attribute-based-generation)
+   - [4.3 Evaluation](#43-evaluation)
+   - [4.4 LoRA-Based Stable Diffusion Training](#44-lora-based-stable-diffusion-training)
 5. [License](#5-license)
 6. [Contributors](#6-contributors)
 
@@ -367,7 +369,43 @@ The script will:
 
 This allows for direct comparison between input and generated images that share the same facial attributes.
 
-### 4.3 LoRA-Based Stable Diffusion Training
+
+## 4.3 Evaluation
+
+To quantitatively evaluate the performance of your trained diffusion models (e.g., using FID score), follow these steps:
+
+### Step 1: Generate Images
+
+- For **unconditional models**, customize and run the `generate.sh` script to generate images from your trained model.
+- For **attribute-conditional models**, customize and run the `generate_conditional.sh` script to generate images conditioned on attributes.
+
+Example (unconditional):
+```bash
+./generate.sh
+```
+
+Example (conditional):
+```bash
+./generate_conditional.sh
+```
+
+These scripts will save generated images to the specified output directory.
+
+### Step 2: Evaluate Generated Images
+
+After generating images, run the `evaluate.sh` script to compute the FID score between the generated images and the reference dataset.
+
+Customize the script as needed, then run:
+```bash
+./evaluate.sh
+```
+
+The script will output the final FID score, which can be used to compare model performance.
+
+> **Note:** Ensure that the paths and parameters in the scripts match your experiment setup and directory structure.
+
+
+### 4.4 LoRA-Based Stable Diffusion Training
 
 We provide support for fine-tuning **Stable Diffusion v2** using **LoRA (Low-Rank Adaptation)** for both **conditional** and **unconditional** facial image generation.
 
