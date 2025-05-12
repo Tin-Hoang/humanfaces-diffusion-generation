@@ -379,22 +379,24 @@ LoRA enables efficient training by injecting low-rank adapters into transformer 
 
 Run the following scripts to fine-tune the LoRA adapters:
 
-```bash
+```
 # 🔧 Conditional Training (with attribute prompts)
 python3 stable_diffusion_lora/v2/train_lora_conditional.py
 
 # 🔧 Unconditional Training
 python3 stable_diffusion_lora/v2/train_lora_unconditional.py
+```
 
 #### 🖼️ Generating Images After Training
 
 Once training is complete, generate images using the LoRA-tuned models:
+```
 # ✨ Conditional Sampling
 python3 stable_diffusion_lora/generate_random_conditional_images.py
 
 # 🌌 Unconditional Sampling
 python3 stable_diffusion_lora/generate_random_unconditional_images.py
-
+```
 Output images will be saved in the outputs/samples/ directory by default.
 You can change save paths, number of samples, and prompts by editing the script files.
 
