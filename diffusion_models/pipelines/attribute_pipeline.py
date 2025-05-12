@@ -66,6 +66,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
 
         Args:
             attributes (torch.Tensor): Multi-hot tensor of shape (batch_size, 40).
+            segmentation (torch.Tensor, optional): Segmentation tensor of shape (batch_size, 1, H, W).
             num_inference_steps (int): Number of denoising steps.
             generator (torch.Generator, optional): Random number generator for reproducibility.
             output_type (str): "pil" for PIL images, "tensor" for raw tensors.
@@ -167,10 +168,6 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             cond = cond.repeat(1, 4, 1)
             assert cond.shape == (batch_size, 4, expected_dim), \
                 f"Final cond shape mismatch: got {cond.shape}, expected ({batch_size}, 4, {expected_dim})"
-
-
-
-
 
             # Print info and setup progress bar
             scheduler_name = "DDIM" if isinstance(self.scheduler, DDIMScheduler) else "DDPM"

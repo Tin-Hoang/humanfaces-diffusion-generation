@@ -24,32 +24,6 @@ def main():
     # Parse command line arguments and get config
     config = parse_args()
 
-# Dynamically set cross_attention_dim based on model and conditioning type
-    if config.is_conditional:
-        if config.conditioning_type == "combined":
-            # Assume both attribute and segmentation embeddings have attribute_embed_dim
-            combined_dim = config.attribute_embed_dim * 2
-            config.cross_attention_dim = combined_dim
-        elif config.conditioning_type == "attribute":
-            config.cross_attention_dim = config.attribute_embed_dim
-        elif config.conditioning_type == "segmentation":
-            config.cross_attention_dim = config.attribute_embed_dim  # using same proj dim for segmentation
-
-    # Wrap as list for UNet blocks if needed
-# Wrap as list only if needed for models with multiple cross-attn blocks
-    if config.model == "lc_unet_3_vqvae":
-    # Only the second block uses cross-attention
-        config.cross_attention_dim = [None, config.cross_attention_dim, None, None, None]
-    elif isinstance(config.cross_attention_dim, int):
-    # Default to 4-block architecture
-        config.cross_attention_dim = [config.cross_attention_dim] * 4
-
-
-
-    # Optionally print for verification
-    print(f"[train.py] Final cross_attention_dim: {config.cross_attention_dim}")
-
-
     # Set device
     config.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"\nUsing device: {config.device}")
@@ -144,36 +118,64 @@ def main():
     else:
         raise ValueError(f"Unknown scheduler type: {config.scheduler_type}")
 
-    # Optimizer and LR Scheduler
-    params_to_optimize = model.parameters()
+    # Setup optimizer and learning rate scheduler
+    params_to_optimize = []
+
+    # Add model parameters
+    params_to_optimize.extend(model.parameters())
+    # Add attribute embedder parameters if it exists
+    if attribute_embedder:
+        params_to_optimize.extend(attribute_embedder.parameters())
+    # Add VAE parameters if it exists and finetune_vae is True
+    if vae and config.finetune_vae:
+        params_to_optimize.extend(vae.parameters())
+
     optimizer = torch.optim.AdamW(
         params=params_to_optimize,
         lr=config.learning_rate,
         weight_decay=config.weight_decay
     )
+
     lr_scheduler = get_cosine_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=config.lr_warmup_steps,
         num_training_steps=(len(train_dataloader) * config.num_epochs)
     )
 
-    # Grid and val attribute samples
-    grid_attributes = create_multi_hot_attributes(
-        attribute_indices=config.grid_attribute_indices,
-        num_attributes=config.num_attributes,
-        num_samples=config.grid_num_samples,
-        random_remaining_indices=config.grid_sample_random_remaining_indices
-    ).to(config.device) if config.grid_attribute_indices is not None else None
+    # Create attribute vectors if using conditional model
+    grid_attributes = None
+    val_attributes = None
+    if config.is_conditional:
+        # Create grid visualization attributes
+        if config.grid_attribute_indices is not None:
+            grid_attributes = create_multi_hot_attributes(
+                attribute_indices=config.grid_attribute_indices,
+                num_attributes=config.num_attributes,
+                num_samples=config.grid_num_samples,
+                random_remaining_indices=config.grid_sample_random_remaining_indices
+            )
+        else:
+            # If no specific indices provided, use random combinations
+            grid_attributes = create_sample_attributes(
+                num_samples=config.grid_num_samples,
+                num_attributes=config.num_attributes,
+            )
 
-    val_attributes = create_sample_attributes(
-        num_samples=config.val_n_samples,
-        num_attributes=config.num_attributes
-    ).to(config.device) if val_dataloader is not None else None
+        # Create validation attributes
+        if val_dataloader is not None:
+            val_attributes = create_sample_attributes(
+                num_samples=config.val_n_samples,
+                num_attributes=config.num_attributes
+            )
 
+    # Move attributes to device
     if val_attributes is not None:
+        val_attributes = val_attributes.to(config.device)
         print("val_attributes shape: ", val_attributes.shape)
     if grid_attributes is not None:
+        grid_attributes = grid_attributes.to(config.device)
         print("grid_attributes shape: ", grid_attributes.shape)
+        # sample first item
         print("grid_attributes first item: ", grid_attributes[0])
 
     # Start training
