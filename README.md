@@ -373,7 +373,6 @@ We provide support for fine-tuning **Stable Diffusion v2** using **LoRA (Low-Ran
 
 LoRA enables efficient training by injecting low-rank adapters into transformer layers, significantly reducing the number of trainable parameters.
 
----
 
 #### 🏋️ Fine-Tuning the Model
 
