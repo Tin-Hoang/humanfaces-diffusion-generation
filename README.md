@@ -74,6 +74,15 @@ EEEM068-Diffusion-Models/
 │   ├── utils/                  # Utility functions
 │   ├── datasets/               # Dataset handling
 │   └── visualization/          # Visualization tools
+├── stable_diffusion_lora/     # Stable Diffusion with LoRA integration
+│   ├── v1/                     # Inference scripts
+│   │   ├── attribute_stable_diffusion_lora.py
+│   │   └── unconditional_stable_diffusion_lora.py
+│   ├── v2/                     # Training scripts
+│   │   ├── train_lora_conditional.py
+│   │   └── train_lora_unconditional.py
+│   ├── generate_random_conditional_images.py
+│   └── generate_random_unconditional_images.py
 ├── scripts/                    # Executable scripts
 ├── data/                       # Data directory
 │   ├── raw/                    # Raw data
@@ -85,7 +94,18 @@ EEEM068-Diffusion-Models/
 ├── docs/                       # Documentation
 ├── notebooks/                  # Jupyter notebooks
 ├── main.py                     # Application entry point
+├── train.sh                    # Base training script
+├── train_conditional_diffusion.sh # Conditional training script
+├── generate.sh                 # Base generation script
+├── generate_conditional.sh    # Conditional generation script
+├── evaluate.sh                # Evaluation pipeline
+├── pyproject.toml
+├── uv.lock
+├── LICENSE
+├── .gitignore
+├── ui/                         # Web UI (if used)
 └── README.md                   # Project documentation
+
 ```
 
 ## 4. Usage
