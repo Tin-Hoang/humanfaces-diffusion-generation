@@ -367,6 +367,37 @@ The script will:
 
 This allows for direct comparison between input and generated images that share the same facial attributes.
 
+### 4.3 LoRA-Based Stable Diffusion Training
+
+We provide support for fine-tuning **Stable Diffusion v2** using **LoRA (Low-Rank Adaptation)** for both **conditional** and **unconditional** facial image generation.
+
+LoRA enables efficient training by injecting low-rank adapters into transformer layers, significantly reducing the number of trainable parameters.
+
+---
+
+#### 🏋️ Fine-Tuning the Model
+
+Run the following scripts to fine-tune the LoRA adapters:
+
+```bash
+# 🔧 Conditional Training (with attribute prompts)
+python3 stable_diffusion_lora/v2/train_lora_conditional.py
+
+# 🔧 Unconditional Training
+python3 stable_diffusion_lora/v2/train_lora_unconditional.py
+
+#### 🖼️ Generating Images After Training
+
+Once training is complete, generate images using the LoRA-tuned models:
+# ✨ Conditional Sampling
+python3 stable_diffusion_lora/generate_random_conditional_images.py
+
+# 🌌 Unconditional Sampling
+python3 stable_diffusion_lora/generate_random_unconditional_images.py
+
+Output images will be saved in the outputs/samples/ directory by default.
+You can change save paths, number of samples, and prompts by editing the script files.
+
 ## 5. License
 
 This project is part of the EEEM068 Diffusion Models coursework at the University of Surrey.
