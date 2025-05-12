@@ -144,12 +144,15 @@ def train_loop(
 
                     else:
                         raise ValueError(f"Unsupported conditioning_type: {config.conditioning_type}")
-
+                else:
+                    # For unconditional model
                     if "dit" in config.model.lower():
-                        dummy_labels = torch.zeros(noisy_images.shape[0], dtype=torch.long, device=noisy_images.device)
-                        noise_pred = model(noisy_images, timesteps, class_labels=dummy_labels, return_dict=False)[0]
+                        # DiT model requires class_labels
+                        dummy_class_labels = torch.zeros(noisy_images.shape[0], dtype=torch.long, device=noisy_images.device)
+                        noise_pred = model(noisy_images, timesteps, class_labels=dummy_class_labels, return_dict=False)[0]
                     else:
-                        noise_pred = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states, return_dict=False)[0]
+                        # Other Unet models
+                        noise_pred = model(noisy_images, timesteps, return_dict=False)[0]
 
                 if is_conditional and config.use_embedding_loss:
                     if encoder_hidden_states.dim() == 3:
@@ -175,9 +178,6 @@ def train_loop(
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
             global_step += 1
-
-
-
 
         if accelerator.is_main_process:
             if (epoch + 1) % config.save_image_epochs == 0 or epoch == config.num_epochs - 1:
