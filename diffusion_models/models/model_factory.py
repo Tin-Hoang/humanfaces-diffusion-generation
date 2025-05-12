@@ -20,6 +20,29 @@ class ModelFactory:
         Returns:
             Tuple of (model, attribute_embedder, vae)
         """
+        # Dynamically set cross_attention_dim based on model and conditioning type
+        if config.is_conditional:
+            if config.conditioning_type == "combined":
+                # Assume both attribute and segmentation embeddings have attribute_embed_dim
+                combined_dim = config.attribute_embed_dim * 2
+                config.cross_attention_dim = combined_dim
+            elif config.conditioning_type == "attribute":
+                config.cross_attention_dim = config.attribute_embed_dim
+            elif config.conditioning_type == "segmentation":
+                config.cross_attention_dim = config.attribute_embed_dim  # using same proj dim for segmentation
+
+        # Hotfix: Wrap as list for UNet blocks if needed
+        # Wrap as list only if needed for models with multiple cross-attn blocks
+        if config.model == "lc_unet_3_vqvae":
+            # Only the second block uses cross-attention
+            config.cross_attention_dim = [None, config.cross_attention_dim, None, None, None]
+        elif isinstance(config.cross_attention_dim, int):
+            # Default to 4-block architecture
+            config.cross_attention_dim = [config.cross_attention_dim] * 4
+
+        # Optionally print for verification
+        print(f"[train.py] Final cross_attention_dim: {config.cross_attention_dim}")
+
         model, attribute_embedder, vae = None, None, None
         # Unconditional models
         if config.model == "unet_notebook":

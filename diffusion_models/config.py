@@ -59,6 +59,15 @@ class TrainingConfig:
     use_embedding_loss: bool = False  # Whether to calculate embedding loss
     embedding_loss_lambda: float = 1.0  # Lambda for embedding loss
     finetune_vae: bool = False  # Whether to finetune the VAE
+    conditioning_type: str = "attribute"  # Can be "attribute", "segmentation", or "combined"
+    attribute_embed_dim: int = 256  # Attribute embedding dimension
+    segmentation_dir: Optional[str] = None  # Directory with segmentation masks
+    num_segmentation_channels: int = 10  # Number of segmentation parts/channels (e.g., 10 for CelebAMask-HQ)
+    cross_attention_dim: Optional[int] = None 
+    segmentation_encoder: Optional[str] = None
+    segmentation_encoder_checkpoint: Optional[str] = None 
+    val_attribute_file: Optional[str] = None
+    val_segmentation_dir: Optional[str] = None
 
     # Grid visualization parameters
     grid_attribute_indices: Optional[List[int]] = None  # Specific attributes for grid visualization
@@ -112,6 +121,9 @@ class TrainingConfig:
         if not self.val_dir or not os.path.exists(self.val_dir):
             # Warn the user that the validation directory does not exist
             print(f"Warning: Validation directory not inputted or not found: {self.val_dir}")
+
+        if not self.is_conditional:
+            self.conditioning_type = "unconditional"
             
         # Set up conditional generation parameters
         if self.is_conditional:
@@ -120,6 +132,16 @@ class TrainingConfig:
             if self.grid_attribute_indices is None:
                 print("No grid_attribute_indices provided, using default: [20] for Male attribute")
                 self.grid_attribute_indices = [20]  # Just use Male attribute for clearer results
+            if self.conditioning_type == "combined":
+                self.cross_attention_dim = [self.attribute_embed_dim + self.num_segmentation_channels] * 4
+                print(f"[Config] Using combined conditioning. cross_attention_dim = {self.cross_attention_dim}")
+            elif self.conditioning_type == "attribute":
+                self.cross_attention_dim = [self.attribute_embed_dim] * 4
+                print(f"[Config] Using attribute-only conditioning. cross_attention_dim = {self.cross_attention_dim}")
+            elif self.conditioning_type == "segmentation":
+                self.cross_attention_dim = [self.num_segmentation_channels] * 4
+                print(f"[Config] Using segmentation-only conditioning. cross_attention_dim = {self.cross_attention_dim}")
+
 
 
 def parse_args() -> TrainingConfig:
@@ -210,6 +232,23 @@ def parse_args() -> TrainingConfig:
                     help="Number of diffusion timesteps used during training")
     parser.add_argument("--finetune-vae", type=str2bool, default=defaults["finetune_vae"],
                     help="Enable finetuning of the VAE")
+    parser.add_argument("--conditioning-type", type=str, choices=["attribute", "segmentation", "combined"], default=defaults["conditioning_type"],
+                    help="Conditioning type: attribute, segmentation, or combined")
+    parser.add_argument("--attribute-embed-dim", type=int, default=defaults["attribute_embed_dim"],
+                    help="Dimension of the attribute embedding")
+    parser.add_argument("--segmentation-dir", type=str, default=defaults["segmentation_dir"],
+                    help="Directory containing segmentation masks")
+    parser.add_argument("--num-segmentation-channels", type=int, default=defaults["num_segmentation_channels"],
+                    help="Number of segmentation mask channels")
+    parser.add_argument("--segmentation-encoder", type=str, default=defaults["segmentation_encoder"],
+                    help="Name of segmentation encoder (e.g., 'segformer')")
+    parser.add_argument("--segmentation-encoder-checkpoint", type=str, default=defaults["segmentation_encoder_checkpoint"],
+                    help="Path or Hugging Face model ID for SegFormer encoder")
+    parser.add_argument("--val-attribute-file", type=str, default=defaults["val_attribute_file"],
+                    help="Path to validation attribute file")
+    parser.add_argument("--val-segmentation-dir", type=str, default=defaults["val_segmentation_dir"],
+                    help="Path to validation segmentation mask folder")
+
 
 
     args = parser.parse_args()

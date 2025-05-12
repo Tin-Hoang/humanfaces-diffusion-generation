@@ -8,6 +8,8 @@ from typing import Optional, Union
 from datasets import load_dataset
 from torchvision import transforms
 import os
+from tqdm import tqdm
+from torchvision.utils import save_image
 
 
 def generate_and_calculate_fid(
@@ -217,4 +219,89 @@ def generate_and_calculate_fid_attributes(
     
     # Calculate and return FID score
     fid_score = float(fid.compute())
+    return fid_score
+    
+def generate_and_calculate_fid_attr_seg(
+    config,
+    model,
+    pipeline,
+    val_dataloader,
+    val_attributes,
+    vae=None,
+    attribute_embedder=None,
+    output_dir="outputs/val_images",
+    num_samples=300,
+):
+    """Generates images conditioned on attributes + segmentation and calculates FID.
+
+    Args:
+        config: TrainingConfig
+        model: UNet model
+        pipeline: Custom diffusion pipeline (e.g., AttributeDiffusionPipeline)
+        val_dataloader: Dataloader for val images
+        val_attributes: [B, A] tensor of attribute conditioning
+        vae: Optional VAE or VQModel
+        attribute_embedder: Optional embedding module for attributes
+        output_dir: Where to save generated images
+        num_samples: Number of validation samples to generate for FID
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    model.eval()
+
+    device = config.device
+    total = 0
+
+    # Initialize FID metric
+    fid = FrechetInceptionDistance(normalize=True).to(device)
+
+    with torch.no_grad():
+        for batch in tqdm(val_dataloader, desc="Generating images for FID"):
+            if total >= num_samples:
+                break
+
+            # Unpack
+            image, attributes, seg = batch
+            bsz = image.size(0)
+            image = image.to(device)
+            attributes = attributes.to(device)
+            seg = seg.to(device)
+
+            if attribute_embedder:
+                attr_embeds = attribute_embedder(attributes)  # [B, D]
+            else:
+                attr_embeds = attributes  # assume already embedded
+
+            # Forward generation
+            generator = torch.Generator(device=device).manual_seed(config.seed)
+            output = pipeline(
+                attributes=attributes,  # original multi-hot
+                segmentation=seg,
+                num_inference_steps=config.num_train_timesteps,
+                generator=generator,
+                output_type="pt"
+            )
+
+
+            samples = output["sample"].to(device)  # [B, C, H, W]
+
+            # Convert from [-1, 1] to [0, 1]
+            samples = (samples * 0.5 + 0.5).clamp(0, 1)
+
+            # Save generated images
+            for i in range(samples.size(0)):
+                save_image(samples[i], os.path.join(output_dir, f"{total+i:05}.png"))
+
+            fid.update(samples, real=False)
+
+            total += bsz
+
+        # Collect real images from val dataloader
+        for batch in val_dataloader:
+            image = batch[0].to(device) if isinstance(batch, (list, tuple)) else batch["images"].to(device)
+            image = (image * 0.5 + 0.5).clamp(0, 1)
+            fid.update(image, real=True)
+
+    # Calculate FID
+    fid_score = float(fid.compute())
+    print(f"\n✅ FID (attribute + segmentation): {fid_score:.2f}")
     return fid_score

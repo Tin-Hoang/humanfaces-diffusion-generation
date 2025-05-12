@@ -1,13 +1,11 @@
 """Training script for diffusion models."""
 
+from datetime import datetime
 import wandb
 import torch
+
 from ema_pytorch import EMA
 from diffusers.optimization import get_cosine_schedule_with_warmup
-from diffusion_models.utils.attribute_utils import (
-    create_sample_attributes,
-    create_multi_hot_attributes
-)
 
 from diffusion_models.config import parse_args
 from diffusion_models.datasets.dataloader import setup_dataloader, create_attribute_dataloader
@@ -15,6 +13,11 @@ from diffusion_models.training_loop import train_loop
 from diffusion_models.noise_schedulers.ddim_scheduler import create_ddim_scheduler
 from diffusion_models.noise_schedulers.ddpm_scheduler import create_ddpm_scheduler
 from diffusion_models.models.model_factory import ModelFactory
+from diffusion_models.utils.attribute_utils import (
+    create_sample_attributes,
+    create_multi_hot_attributes
+)
+
 
 
 def main():
@@ -34,6 +37,8 @@ def main():
 
     # Create model and noise scheduler using the model factory
     model, attribute_embedder, vae = ModelFactory.create_model(config)
+
+ # Setup Exponential Moving Average
     ema = EMA(model, beta=0.9999, update_after_step=0, update_every=1) if config.use_ema else None
 
     if config.use_wandb:
@@ -47,32 +52,30 @@ def main():
         wandb.run.log_code(
             root=".",
             include_fn=lambda path: (
-                path.endswith(".py")
-                or path.endswith(".ipynb")
-                or path.endswith(".sh")
+                path.endswith(".py") or path.endswith(".ipynb") or path.endswith(".sh")
             ),
-            exclude_fn=lambda path: (".venv" in path
-                                     or ".git" in path
-                                     or "checkpoints/" in path
-                                     or "outputs/" in path
-                                     or "data/" in path)
+            exclude_fn=lambda path: (
+                ".venv" in path
+                or ".git" in path
+                or "checkpoints/" in path
+                or "outputs/" in path
+                or "data/" in path
+            )
         )
 
     # Setup training dataset and preprocessing
     if config.is_conditional:
-        # Use attribute dataloader for conditional training
         train_dataloader = create_attribute_dataloader(
             image_dir=config.train_dir,
             attribute_label_path=config.attribute_file,
+            segmentation_dir=config.segmentation_dir,
             batch_size=config.train_batch_size,
             num_workers=config.num_workers,
             shuffle=True,
             image_size=config.image_size
         )
-        # Get preprocessing from attribute dataloader
         preprocess = train_dataloader.dataset.transform
     else:
-        # Use regular dataloader for unconditional training
         train_dataloader, preprocess = setup_dataloader(
             data_source=config.train_dir,
             batch_size=config.train_batch_size,
@@ -80,13 +83,14 @@ def main():
             shuffle=True
         )
 
-    # Setup validation dataset if val_dir is provided
+    # Setup validation dataset
     val_dataloader = None
     if config.val_dir:
         if config.is_conditional:
             val_dataloader = create_attribute_dataloader(
                 image_dir=config.val_dir,
                 attribute_label_path=config.attribute_file,
+                segmentation_dir=config.segmentation_dir,
                 batch_size=config.eval_batch_size,
                 num_workers=config.num_workers,
                 shuffle=False,
@@ -102,19 +106,14 @@ def main():
     else:
         print("[Warning] No validation directory provided, skipping validation during training.")
 
-    # Create noise scheduler based on config
+    # Create noise scheduler
     if config.scheduler_type == "ddim":
-        noise_scheduler = create_ddim_scheduler(
-            num_train_timesteps=config.num_train_timesteps
-        )
+        noise_scheduler = create_ddim_scheduler(num_train_timesteps=config.num_train_timesteps)
         print("\nUsing DDIM scheduler for training")
     elif config.scheduler_type == "ddpm":
-        noise_scheduler = create_ddpm_scheduler(
-            num_train_timesteps=config.num_train_timesteps
-        )
-        print("\nUsing DDPM scheduler for training")
+        noise_scheduler = create_ddpm_scheduler(num_train_timesteps=config.num_train_timesteps)
     else:
-        raise ValueError(f"Invalid scheduler type: {config.scheduler_type}")
+        raise ValueError(f"Unknown scheduler type: {config.scheduler_type}")
 
     # Setup optimizer and learning rate scheduler
     params_to_optimize = []
@@ -176,7 +175,7 @@ def main():
         # sample first item
         print("grid_attributes first item: ", grid_attributes[0])
 
-    # Run training loop with attribute vectors and embedder
+    # Start training
     train_loop(
         config=config,
         model=model,
@@ -194,11 +193,9 @@ def main():
         ema=ema
     )
 
-    # Close wandb run
     if config.use_wandb:
         wandb.finish()
 
 
 if __name__ == "__main__":
     main()
-
