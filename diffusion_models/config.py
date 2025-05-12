@@ -89,6 +89,10 @@ class TrainingConfig:
     patch_size: int = 16
     img_size: int = 256
 
+    # Data Augmentation parameters
+    color_jitter: bool = False 
+    elastic_transform: bool = False
+
     def __post_init__(self):
         """Set default output_dir if not provided."""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -232,6 +236,10 @@ def parse_args() -> TrainingConfig:
                     help="Number of diffusion timesteps used during training")
     parser.add_argument("--finetune-vae", type=str2bool, default=defaults["finetune_vae"],
                     help="Enable finetuning of the VAE")
+    parser.add_argument("--elastic-transform", type=str2bool, default=defaults["elastic_transform"], 
+                    help="elastic transform for data augmentation")
+    parser.add_argument("--color-jitter", type=str2bool, default=defaults["color_jitter"], 
+                    help="randomly change the brightness, contrast and saturation")
     parser.add_argument("--conditioning-type", type=str, choices=["attribute", "segmentation", "combined"], default=defaults["conditioning_type"],
                     help="Conditioning type: attribute, segmentation, or combined")
     parser.add_argument("--attribute-embed-dim", type=int, default=defaults["attribute_embed_dim"],
@@ -248,8 +256,6 @@ def parse_args() -> TrainingConfig:
                     help="Path to validation attribute file")
     parser.add_argument("--val-segmentation-dir", type=str, default=defaults["val_segmentation_dir"],
                     help="Path to validation segmentation mask folder")
-
-
 
     args = parser.parse_args()
 

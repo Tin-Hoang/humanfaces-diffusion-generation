@@ -3,7 +3,9 @@
 from torchvision import transforms
 from typing import Dict, Any
 from torchvision.transforms import InterpolationMode
+from diffusion_models.config import parse_args
 
+config = parse_args()
 
 def get_preprocess_transform(image_size: int) -> transforms.Compose:
     """Get preprocessing transform for images.
@@ -14,6 +16,13 @@ def get_preprocess_transform(image_size: int) -> transforms.Compose:
     Returns:
         Preprocessing transform
     """
+
+    # Additional Data Augmentations 
+    if config.color_jitter:
+        transforms.ColorJitter()
+    if config.elastic_transform:
+        transforms.ElasticTransform(alpha=250.0)
+
     return transforms.Compose([
         transforms.Resize((image_size, image_size), interpolation=InterpolationMode.LANCZOS),  # Resize to target size
         transforms.RandomHorizontalFlip(),  # Random horizontal flip
