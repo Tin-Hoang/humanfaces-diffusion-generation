@@ -12,7 +12,6 @@ from tqdm import tqdm
 from diffusers import DDPMPipeline
 
 from diffusion_models.datasets.data_utils import get_inference_transform
-from diffusion_models.datasets.attribute_dataset import AttributeDataset
 from diffusers.models.transformers import DiTTransformer2DModel
 from diffusion_models.pipelines.attribute_pipeline import AttributeDiffusionPipeline
 from diffusion_models.config import TrainingConfig

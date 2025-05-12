@@ -1,12 +1,13 @@
 """Dataset loading utilities for diffusion models."""
 
 from datasets import load_dataset
+from diffusion_models.config import TrainingConfig
 from torch.utils.data import DataLoader
 from typing import Tuple
 from torchvision import transforms
 import os
 
-from diffusion_models.datasets.data_utils import get_preprocess_transform, transform
+from diffusion_models.datasets.data_utils import get_preprocess_transform, transform, get_inference_transform
 from diffusion_models.datasets.attribute_dataset import AttributeDataset
 from typing import Optional
 from typing import List
@@ -20,10 +21,12 @@ def setup_dataloader(
     split: str = "train",
     num_workers: int = 4,
     pin_memory: bool = True,
-    drop_last: bool = True
+    drop_last: bool = True,
+    config: TrainingConfig = None,
+    mode: str = "train"
 ) -> Tuple[DataLoader, transforms.Compose]:
     """Setup a dataset with preprocessing.
-    
+
     Args:
         data_source: Either:
             - A string path to a local image folder, or
@@ -42,15 +45,18 @@ def setup_dataloader(
             - Preprocessing transform
     """
     # Setup preprocessing
-    preprocess = get_preprocess_transform(image_size)
-    
+    if mode == "train":
+        preprocess = get_preprocess_transform(image_size, config)
+    else:
+        preprocess = get_inference_transform(image_size)
+
     # Check if data source exists locally
     if os.path.exists(data_source):
         # Local image folder
         dataset = load_dataset("imagefolder", data_dir=data_source, split=split)
         print(f"Loaded local dataset from: {data_source}")
         print(f"Number of images in the dataset: {len(dataset)}")
-        
+
         # For imagefolder datasets, the image column is named 'image'
         image_column = 'image'
     else:
@@ -59,11 +65,11 @@ def setup_dataloader(
             dataset = load_dataset(data_source, split=split)
             print(f"Loaded Hugging Face dataset: {data_source}")
             print(f"Number of images in the dataset: {len(dataset)}")
-            
+
             # Try to find the image column
             possible_image_columns = ['image', 'img', 'images', 'pixel_values']
             image_column = next((col for col in possible_image_columns if col in dataset.column_names), None)
-            
+
             if image_column is None:
                 raise ValueError(
                     f"Could not find image column in dataset. Available columns: {dataset.column_names}"
@@ -74,10 +80,10 @@ def setup_dataloader(
                 f"Please check if the path exists locally or if the Hugging Face dataset name is correct. "
                 f"Error: {str(e)}"
             )
-    
+
     # Apply transforms
     dataset.set_transform(lambda examples: transform(examples, preprocess))
-    
+
     # Create dataloader with all specified settings
     dataloader = DataLoader(
         dataset,
@@ -87,7 +93,7 @@ def setup_dataloader(
         pin_memory=pin_memory,
         drop_last=drop_last
     )
-    
+
     return dataloader, preprocess
 
 
@@ -98,10 +104,12 @@ def create_attribute_dataloader(
     num_workers: int = 4,
     shuffle: bool = True,
     image_size: int = 256,
-    segmentation_dir: Optional[str] = None
+    segmentation_dir: Optional[str] = None,
+    config: TrainingConfig = None,
+    mode: str = "train"
 ) -> DataLoader:
     """Create a DataLoader for the attribute dataset.
-    
+
     Args:
         image_dir (str): Directory containing the image files
         attribute_label_path (str): Path to the attribute label file
@@ -109,11 +117,15 @@ def create_attribute_dataloader(
         num_workers (int): Number of worker processes for data loading
         shuffle (bool): Whether to shuffle the data
         image_size (int): Size to resize images to (both height and width)
-        
+
     Returns:
         DataLoader: DataLoader for the attribute dataset
     """
-    preprocess = get_preprocess_transform(image_size)
+    if mode == "train":
+        preprocess = get_preprocess_transform(image_size, config)
+    else:
+        # For inference, we don't need to apply any transforms
+        preprocess = get_inference_transform(image_size)
 
     # Create the dataset
     dataset = AttributeDataset(
@@ -123,7 +135,7 @@ def create_attribute_dataloader(
         transform=preprocess,
         mask_dir=segmentation_dir
     )
-    
+
     # Create and return the dataloader
     return DataLoader(
         dataset,
@@ -147,7 +159,7 @@ if __name__ == "__main__":
         )
         batch = next(iter(local_loader))
         print(f"Local batch shape: {batch['images'].shape}")
-        
+
         # Test Hugging Face dataset
         print("\nTesting Hugging Face dataset loader:")
         hf_loader, preprocess = setup_dataloader(
@@ -158,7 +170,7 @@ if __name__ == "__main__":
         )
         batch = next(iter(hf_loader))
         print(f"HF batch shape: {batch['images'].shape}")
-        
+
         # Test attribute dataloader
         print("\nTesting attribute dataloader:")
         train_loader = create_attribute_dataloader(
@@ -168,9 +180,9 @@ if __name__ == "__main__":
         batch = next(iter(train_loader))
         images, attributes = batch
         print(f"Attribute batch shapes - Images: {images.shape}, Attributes: {attributes.shape}")
-        
+
         print("\n✅ All tests passed!")
-        
+
     except Exception as e:
         print(f"❌ Test failed: {str(e)}")
         raise

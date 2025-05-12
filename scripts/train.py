@@ -72,7 +72,9 @@ def main():
             batch_size=config.train_batch_size,
             num_workers=config.num_workers,
             shuffle=True,
-            image_size=config.image_size
+            image_size=config.image_size,
+            config=config,
+            mode="train"
         )
         preprocess = train_dataloader.dataset.transform
     else:
@@ -80,7 +82,9 @@ def main():
             data_source=config.train_dir,
             batch_size=config.train_batch_size,
             image_size=config.image_size,
-            shuffle=True
+            shuffle=True,
+            config=config,
+            mode="train"
         )
 
     # Setup validation dataset
@@ -94,14 +98,18 @@ def main():
                 batch_size=config.eval_batch_size,
                 num_workers=config.num_workers,
                 shuffle=False,
-                image_size=config.image_size
+                image_size=config.image_size,
+                config=config,
+                mode="val"
             )
         else:
             val_dataloader, _ = setup_dataloader(
                 data_source=config.val_dir,
                 batch_size=config.eval_batch_size,
                 image_size=config.image_size,
-                shuffle=False
+                shuffle=False,
+                config=config,
+                mode="val"
             )
     else:
         print("[Warning] No validation directory provided, skipping validation during training.")
