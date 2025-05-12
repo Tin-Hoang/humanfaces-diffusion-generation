@@ -1,14 +1,20 @@
+"""Image generation utilities for diffusion models."""
+import os
+from pathlib import Path
+from typing import List, Union, Optional, Dict
+
 import torch
-from diffusers import DiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDIMScheduler, DDPMScheduler,DiTTransformer2DModel
+from diffusers import DiTTransformer2DModel
 from typing import Optional, Dict, Union
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
-import torch.nn.functional as F
-from pathlib import Path
-import os
+from diffusers import DDPMPipeline
 
-from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
+from diffusion_models.datasets.data_utils import get_inference_transform
+from diffusion_models.datasets.attribute_dataset import AttributeDataset
+from diffusers.models.transformers import DiTTransformer2DModel
+from diffusion_models.pipelines.attribute_pipeline import AttributeDiffusionPipeline
 from diffusion_models.config import TrainingConfig
 from diffusers import DDPMPipeline
 from torchvision.utils import make_grid, save_image
@@ -22,168 +28,6 @@ def make_pil_grid(images, rows, cols):
     for i, image in enumerate(images):
         grid.paste(image, box=(i % cols * w, i // cols * h))
     return grid
-
-
-class AttributeDiffusionPipeline(DiffusionPipeline):
-    def __init__(
-        self,
-        unet: UNet2DConditionModel,
-        vae: AutoencoderKL,
-        scheduler: Union[DDIMScheduler, DDPMScheduler],
-        attribute_embedder: AttributeEmbedder,
-        image_size: int = 256
-    ):
-        super().__init__()
-        self.register_modules(
-            unet=unet,
-            vae=vae,
-            scheduler=scheduler,
-            attribute_embedder=attribute_embedder
-        )
-        self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
-        self.image_size = image_size
-
-        expected_sample_size = image_size // self.vae_scale_factor
-        if self.unet.config.sample_size != expected_sample_size:
-            raise ValueError(
-                f"UNet sample_size ({self.unet.config.sample_size}) does not match expected size "
-                f"for {image_size}x{image_size} images ({expected_sample_size})."
-            )
-
-    @torch.no_grad()
-    def __call__(
-        self,
-        attributes: torch.Tensor,
-        segmentation: Optional[torch.Tensor] = None,
-        num_inference_steps: int = 50,
-        generator: Optional[torch.Generator] = None,
-        output_type: str = "pil",
-        return_dict: bool = True,
-        decode_batch_size: int = 2,
-        eta: float = 0.0
-    ) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
-        unet_training = self.unet.training
-        vae_training = self.vae.training
-        embedder_training = self.attribute_embedder.training
-
-        self.unet.eval()
-        self.vae.eval()
-        self.attribute_embedder.eval()
-
-        try:
-            batch_size = attributes.size(0)
-            if attributes.size(1) != 40:
-                raise ValueError("Attributes tensor must have shape (batch_size, 40)")
-
-            device = self.unet.device
-            dtype = self.unet.dtype
-            attributes = attributes.to(device, dtype)
-
-            if generator is None:
-                generator = torch.Generator(device=device).manual_seed(42)
-
-            latent_size = self.unet.config.sample_size
-            latents = torch.randn(
-                (batch_size, self.unet.config.in_channels, latent_size, latent_size),
-                device=device,
-                dtype=dtype,
-                generator=generator
-            )
-
-            self.scheduler.set_timesteps(num_inference_steps, device=device)
-            timesteps = self.scheduler.timesteps
-            latents = latents * self.scheduler.init_noise_sigma
-
-            cond_attr = self.attribute_embedder(attributes)
-            assert cond_attr.shape[-1] == 128, f"[DEBUG] Attribute embedding dim must be 128, got {cond_attr.shape[-1]}"
-
-            if segmentation is not None:
-                if segmentation.dim() != 4:
-                    raise ValueError("Segmentation tensor must have shape (B, C, H, W)")
-                segmentation = segmentation.to(device, dtype)
-                if segmentation.shape[1] == 1:
-                    segmentation = segmentation.repeat(1, 3, 1, 1)
-
-                seg_input = F.interpolate(segmentation, size=(512, 512), mode='bilinear', align_corners=False)
-                base_model = getattr(self.unet.segmentation_encoder, "base_model", None)
-                if base_model is None:
-                    raise ValueError("UNet is missing segmentation_encoder.base_model")
-
-                encoder_output = base_model(seg_input)
-                seg_features = encoder_output.last_hidden_state.mean(dim=1)
-                assert seg_features.shape[1] == self.unet.seg_proj.in_features, \
-                    f"Expected seg_features shape [B, {self.unet.seg_proj.in_features}], got {seg_features.shape}"
-                seg_embedding = self.unet.seg_proj(seg_features).unsqueeze(1)
-                assert seg_embedding.shape[-1] == 128, f"[DEBUG] seg_embedding dim must be 128, got {seg_embedding.shape[-1]}"
-                cond = torch.cat([cond_attr, seg_embedding], dim=-1)
-            else:
-                padding = torch.zeros(cond_attr.shape[0], 1, 128, device=device, dtype=dtype)
-                cond = torch.cat([cond_attr, padding], dim=-1)
-
-            cond = cond.repeat(1, 4, 1)
-            assert cond.shape == (batch_size, 4, 256), f"Final cond shape mismatch: {cond.shape}"
-
-            scheduler_name = "DDIM" if isinstance(self.scheduler, DDIMScheduler) else "DDPM"
-            print(f"\nGenerating {batch_size} {self.image_size}x{self.image_size} images with {scheduler_name} sampling")
-            print(f"Using {num_inference_steps} inference steps")
-            if isinstance(self.scheduler, DDIMScheduler):
-                print(f"eta={eta} (stochasticity parameter)")
-            print(f"Attribute values: {attributes[0].cpu().numpy()}")
-
-            with tqdm(total=len(timesteps), desc=f"{scheduler_name} Sampling") as pbar:
-                for t in timesteps:
-                    t = t.to(device)
-                    noise_pred = self.unet(latents, t, encoder_hidden_states=cond).sample
-                    step_output = self.scheduler.step(
-                        model_output=noise_pred,
-                        timestep=t,
-                        sample=latents,
-                        eta=eta if isinstance(self.scheduler, DDIMScheduler) else None,
-                        generator=generator
-                    )
-                    latents = step_output.prev_sample
-                    del noise_pred, step_output
-                    torch.cuda.empty_cache()
-                    pbar.update(1)
-
-            latents = latents / self.vae.config.scaling_factor
-            target_size = (self.image_size, self.image_size)
-
-            all_images = []
-            for i in tqdm(range(0, batch_size, decode_batch_size), desc="VAE decoding"):
-                batch_latents = latents[i:i+decode_batch_size]
-                batch_images = self.vae.decode(batch_latents).sample
-                batch_images = (batch_images / 2 + 0.5).clamp(0, 1)
-
-                if output_type == "pil":
-                    for img in batch_images:
-                        img_np = img.cpu().float().numpy().transpose(1, 2, 0) * 255
-                        pil_image = Image.fromarray(img_np.astype(np.uint8))
-                        if pil_image.size != target_size:
-                            pil_image = pil_image.resize(target_size, Image.Resampling.LANCZOS)
-                        all_images.append(pil_image)
-                else:
-                    if batch_images.shape[-2:] != target_size:
-                        batch_images = torch.nn.functional.interpolate(
-                            batch_images,
-                            size=target_size,
-                            mode='bicubic',
-                            align_corners=False
-                        )
-                    batch_images = batch_images.clamp(0, 1)
-                    all_images.append(batch_images.cpu())
-
-            if output_type != "pil":
-                all_images = torch.cat(all_images, dim=0)
-
-            if return_dict:
-                return {"sample": all_images}
-            return all_images
-
-        finally:
-            self.unet.train(unet_training)
-            self.vae.train(vae_training)
-            self.attribute_embedder.train(embedder_training)
 
 
 def generate_images_to_dir(
@@ -297,14 +141,14 @@ def generate_grid_images(config: TrainingConfig, epoch: int, pipeline: DDPMPipel
 def generate_grid_images_attributes(config, epoch, pipeline, attributes, segmentation: Optional[torch.Tensor] = None):
     """
     Generate and save a grid of sample images conditioned on attributes (+ segmentation if applicable).
-    
+
     Args:
         config: Training configuration.
         epoch: Current epoch number.
         pipeline: The diffusion pipeline (e.g., AttributeDiffusionPipeline).
         attributes (torch.Tensor): Attribute tensor [B, 40].
         segmentation (Optional[torch.Tensor]): Optional segmentation tensor [B, 1 or 3, H, W].
-    
+
     Returns:
         output_path: Path to saved grid image.
         image_grid: The generated image grid as a tensor.
@@ -335,6 +179,67 @@ def generate_grid_images_attributes(config, epoch, pipeline, attributes, segment
     save_image(image_grid, output_path)
 
     return output_path, image_grid
+
+
+def generate_image2image_with_attributes(
+    pipeline: AttributeDiffusionPipeline,
+    attributes: torch.Tensor,
+    init_images: List[Image.Image],
+    num_inference_steps: int = 50,
+    strength: float = 0.8,
+    generator: Optional[torch.Generator] = None,
+    output_type: str = "pil",
+    return_dict: bool = True,
+    decode_batch_size: int = 2,
+    eta: float = 0.0,
+) -> Union[Dict[str, Union[List[Image.Image], torch.Tensor]], Union[List[Image.Image], torch.Tensor]]:
+    """Generate images conditioned on attributes and initial images.
+
+    This function handles the conversion of PIL images to tensors for image-to-image
+    generation with attribute conditioning.
+
+    Args:
+        pipeline: The attribute diffusion pipeline
+        attributes: Multi-hot tensor of shape (batch_size, 40)
+        init_images: List of PIL images to use as starting point
+        num_inference_steps: Number of denoising steps
+        strength: How much to transform the init_image (1.0 = completely transform)
+        generator: Random number generator for reproducibility
+        output_type: "pil" for PIL images, "tensor" for raw tensors
+        return_dict: Whether to return a dict with the output
+        decode_batch_size: Batch size for VAE decoding to manage memory
+        eta: Parameter between 0 and 1, controlling stochasticity (0 = deterministic DDIM)
+
+    Returns:
+        Dict or List/Tensor: Generated images in the specified format
+    """
+    # Create transform to resize and normalize images
+    transform = get_inference_transform(pipeline.image_size)
+
+    # Convert PIL images to tensor
+    init_image_tensor = torch.stack([transform(img) for img in init_images])
+
+    # Ensure batch size matches
+    batch_size = attributes.size(0)
+    if init_image_tensor.size(0) != batch_size:
+        if init_image_tensor.size(0) == 1:
+            # Repeat single image to match batch size
+            init_image_tensor = init_image_tensor.repeat(batch_size, 1, 1, 1)
+        else:
+            raise ValueError(f"Number of init images ({init_image_tensor.size(0)}) does not match batch size ({batch_size})")
+
+    # Call the pipeline with the tensor
+    return pipeline(
+        attributes=attributes,
+        num_inference_steps=num_inference_steps,
+        generator=generator,
+        output_type=output_type,
+        return_dict=return_dict,
+        decode_batch_size=decode_batch_size,
+        eta=eta,
+        init_image=init_image_tensor,
+        strength=strength
+    )
 
 
 def generate_images_from_attributes(

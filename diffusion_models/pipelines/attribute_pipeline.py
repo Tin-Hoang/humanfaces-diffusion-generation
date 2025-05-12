@@ -121,8 +121,6 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
             if expected_dim is None:
                 raise ValueError("cross_attention_dim is None. Please check model config.")
 
-           
-
             if segmentation is not None:
                 if segmentation.dim() != 4:
                     raise ValueError("Segmentation tensor must have shape (B, C, H, W)")
