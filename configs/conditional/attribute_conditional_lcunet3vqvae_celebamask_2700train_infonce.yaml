@@ -1,0 +1,86 @@
+# ================================
+# Model configuration
+# ================================
+model: lc_unet_3_vqvae
+run_name: attribute_lcunet3vqvae_celebamask_2700train_infonce
+
+# ================================
+# Training configuration
+# ================================
+image_size: 256
+train_batch_size: 16
+eval_batch_size: 64
+num_epochs: 2000
+learning_rate: 2e-4
+weight_decay: 1e-2
+lr_warmup_steps: 5000
+gradient_accumulation_steps: 1
+seed: 42
+mixed_precision: "no"
+
+# ================================
+# Save and logging configuration
+# ================================
+save_image_epochs: 1
+save_model_epochs: 1
+root_output_dir: /scratch/group_5/diffusion_checkpoints
+
+# ================================
+# Dataset configuration
+# ================================
+dataset_name: celebamask_hq_256_2700train
+num_workers: 4
+
+train_dir: data/CelebAMask-HQ-SPLIT/images_and_masks/train/images
+val_dir: data/CelebAMask-HQ-SPLIT/images_and_masks/val/images
+val_n_samples: 300
+
+# ================================
+# Diffusion configuration
+# ================================
+num_train_timesteps: 1000
+scheduler_type: ddpm
+use_embedding_loss: true
+embedding_loss_lambda: 1.0
+
+# ================================
+# WandB configuration
+# ================================
+use_wandb: false
+wandb_project: EEEM068_Diffusion_Models
+wandb_entity: tin-hoang
+
+# ================================
+# Model architecture configuration
+# ================================
+use_ema: true
+use_scale_shift_norm: false
+
+# ================================
+# Conditional generation configuration
+# ================================
+is_conditional: true
+conditioning_type: combined  # Options: attribute, segmentation, combined
+
+attribute_file: data/CelebAMask-HQ-SPLIT/annotations/attribute_train.txt
+num_attributes: 40
+attribute_embed_dim: 128
+num_segmentation_channels: 128
+
+
+
+# Used for grid visualization
+grid_attribute_indices: [35]  # Wearing Hat
+grid_num_samples: 16
+grid_sample_random_remaining_indices: true
+
+# ================================
+# Segmentation conditioning configuration
+# ================================
+segmentation_dir: data/CelebAMask-HQ-SPLIT/images_and_masks/train/masks
+segmentation_encoder: segformer
+segmentation_encoder_checkpoint: nvidia/segformer-b0-finetuned-ade-512-512
+
+# Optional validation segmentation + attribute files
+val_attribute_file: data/CelebAMask-HQ-SPLIT/annotations/attribute_val.txt
+val_segmentation_dir: data/CelebAMask-HQ-SPLIT/images_and_masks/val/masks

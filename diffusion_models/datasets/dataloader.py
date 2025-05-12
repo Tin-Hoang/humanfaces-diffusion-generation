@@ -8,6 +8,8 @@ import os
 
 from diffusion_models.datasets.data_utils import get_preprocess_transform, transform
 from diffusion_models.datasets.attribute_dataset import AttributeDataset
+from typing import Optional
+from typing import List
 
 
 def setup_dataloader(
@@ -96,6 +98,7 @@ def create_attribute_dataloader(
     num_workers: int = 4,
     shuffle: bool = True,
     image_size: int = 256,
+    segmentation_dir: Optional[str] = None
 ) -> DataLoader:
     """Create a DataLoader for the attribute dataset.
     
@@ -117,7 +120,8 @@ def create_attribute_dataloader(
         image_dir=image_dir,
         attribute_label_path=attribute_label_path,
         image_size=image_size,
-        transform=preprocess
+        transform=preprocess,
+        mask_dir=segmentation_dir
     )
     
     # Create and return the dataloader

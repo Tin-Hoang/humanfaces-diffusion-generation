@@ -4,6 +4,8 @@ from typing import Optional, Dict, Union
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
+import torch.nn.functional as F
+
 
 from diffusion_models.models.conditional.attribute_embedder import AttributeEmbedder
 
@@ -51,6 +53,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
     def __call__(
         self,
         attributes: torch.Tensor,
+        segmentation: Optional[torch.Tensor] = None,  # <-- New argument
         num_inference_steps: int = 50,
         generator: Optional[torch.Generator] = None,
         output_type: str = "pil",  # "pil" or "tensor"
@@ -63,6 +66,7 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
 
         Args:
             attributes (torch.Tensor): Multi-hot tensor of shape (batch_size, 40).
+            segmentation (torch.Tensor, optional): Segmentation tensor of shape (batch_size, 1, H, W).
             num_inference_steps (int): Number of denoising steps.
             generator (torch.Generator, optional): Random number generator for reproducibility.
             output_type (str): "pil" for PIL images, "tensor" for raw tensors.
@@ -85,18 +89,18 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
         self.attribute_embedder.eval()
 
         try:
-            # Validate input
             batch_size = attributes.size(0)
             if attributes.size(1) != 40:
                 raise ValueError("Attributes tensor must have shape (batch_size, 40)")
 
-            # Move to device and dtype
             device = self.unet.device
             dtype = self.unet.dtype
             attributes = attributes.to(device, dtype)
 
-            # Sample initial noise in latent space
-            latent_size = self.unet.config.sample_size  # Should be image_size/8
+            if generator is None:
+                generator = torch.Generator(device=device).manual_seed(42)
+
+            latent_size = self.unet.config.sample_size
             latents = torch.randn(
                 (batch_size, self.unet.config.in_channels, latent_size, latent_size),
                 device=device,
@@ -104,15 +108,66 @@ class AttributeDiffusionPipeline(DiffusionPipeline):
                 generator=generator
             )
 
-            # Set timesteps for sampling
             self.scheduler.set_timesteps(num_inference_steps, device=device)
             timesteps = self.scheduler.timesteps
-
-            # Scale the initial noise
             latents = latents * self.scheduler.init_noise_sigma
 
-            # Project attributes to conditioning input
-            cond = self.attribute_embedder(attributes)  # (batch_size, 1, 256)
+            attr_emb = self.attribute_embedder(attributes)  # [B, 1, attr_dim]
+            attr_dim = attr_emb.shape[-1]
+
+            # Handle list-valued cross_attention_dim (e.g., [256, 256, 256, 256])
+            expected_dim = self.unet.config.cross_attention_dim
+            if isinstance(expected_dim, list):
+                expected_dim = next((d for d in expected_dim if d is not None), None)
+            if expected_dim is None:
+                raise ValueError("cross_attention_dim is None. Please check model config.")
+
+            if segmentation is not None:
+                if segmentation.dim() != 4:
+                    raise ValueError("Segmentation tensor must have shape (B, C, H, W)")
+
+                segmentation = segmentation.to(device, dtype)
+                if segmentation.shape[1] == 1:
+                    segmentation = segmentation.repeat(1, 3, 1, 1)
+
+                seg_input = F.interpolate(segmentation, size=(512, 512), mode='bilinear', align_corners=False)
+                base_model = getattr(self.unet.segmentation_encoder, "base_model", None)
+                if base_model is None:
+                    raise ValueError("UNet is missing segmentation_encoder.base_model")
+
+                with torch.no_grad():
+                    encoder_output = base_model(seg_input)
+                    seg_features = encoder_output.last_hidden_state.mean(dim=[2, 3])  # [B, C]
+                    seg_emb = self.unet.seg_proj(seg_features).unsqueeze(1)  # [B, 1, seg_dim]
+
+                combined = torch.cat([attr_emb, seg_emb], dim=-1)  # [B, 1, attr_dim + seg_dim]
+
+                if hasattr(self.unet, "combined_proj"):
+                    cond = self.unet.combined_proj(combined)
+                else:
+                    current_dim = combined.shape[-1]
+                    if current_dim < expected_dim:
+                        padding = torch.zeros(combined.shape[0], 1, expected_dim - current_dim, device=combined.device)
+                        cond = torch.cat([combined, padding], dim=-1)
+                    elif current_dim > expected_dim:
+                        cond = combined[:, :, :expected_dim]
+                    else:
+                        cond = combined
+
+            else:
+                # Attribute-only mode
+                if attr_dim < expected_dim:
+                    pad = expected_dim - attr_dim
+                    padding = torch.zeros(attr_emb.shape[0], 1, pad, device=attr_emb.device, dtype=attr_emb.dtype)
+                    cond = torch.cat([attr_emb, padding], dim=-1)
+                elif attr_dim > expected_dim:
+                    cond = attr_emb[:, :, :expected_dim]
+                else:
+                    cond = attr_emb
+
+            cond = cond.repeat(1, 4, 1)
+            assert cond.shape == (batch_size, 4, expected_dim), \
+                f"Final cond shape mismatch: got {cond.shape}, expected ({batch_size}, 4, {expected_dim})"
 
             # Print info and setup progress bar
             scheduler_name = "DDIM" if isinstance(self.scheduler, DDIMScheduler) else "DDPM"
