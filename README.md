@@ -6,6 +6,11 @@
 This repository contains an implementation of diffusion models for image generation, specifically focused on human faces.
 
 <p align="center">
+  <img src="docs/Attributes_Diffusion_Pipeline.png" alt="Attributes Diffusion Pipeline"/>
+</p>
+
+
+<p align="center">
   <img src="docs/generated-faces.gif" alt="Generated Human Faces" width="512"/>
 </p>
 
