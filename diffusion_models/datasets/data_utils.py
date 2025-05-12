@@ -17,7 +17,6 @@ def get_preprocess_transform(image_size: int, config: TrainingConfig = None) -> 
     """
     if config is None:
         config = parse_args()
-    print(f"config: {config}")
 
     base_transform = [
         transforms.Resize((image_size, image_size), interpolation=InterpolationMode.LANCZOS),  # Resize to target size
