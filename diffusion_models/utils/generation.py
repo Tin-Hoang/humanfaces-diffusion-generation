@@ -29,6 +29,79 @@ def make_pil_grid(images, rows, cols):
     return grid
 
 
+def generate_images(
+    pipeline,
+    batch_size: int = 4,
+    device: str = "cuda",
+    seed: int = 42,
+    initial_noise: torch.Tensor = None,
+    num_inference_steps: int = 1000,
+) -> List[Image.Image]:
+    """Generate a single batch of images using the pipeline.
+    Args:
+        pipeline: The diffusion pipeline
+        batch_size: Batch size for generation
+        device: Device to use for generation
+        seed: Random seed for reproducibility
+        initial_noise: Optional initial noise tensor to use for generation
+        num_inference_steps: Number of denoising steps
+    Returns:
+        List of generated PIL Images
+    """
+    # Move pipeline to device
+    pipeline = pipeline.to(device)
+
+    # Set number of inference steps
+    pipeline.scheduler.set_timesteps(num_inference_steps)
+
+    # Generate images
+    generator = torch.Generator(device=device).manual_seed(seed)
+
+    # Check if the model is a DiT model
+    if isinstance(pipeline.unet, DiTTransformer2DModel):
+        # Wrap the UNet forward method to handle timestep and class labels for DiT
+        original_forward = pipeline.unet.forward
+
+        def wrapped_forward(sample, timestep, **kwargs):
+            # Ensure timestep is a 1D tensor: if it's a scalar, expand it for the batch.
+            if timestep.dim() == 0:
+                timestep = timestep.unsqueeze(0).repeat(sample.shape[0])
+            timestep = timestep.to(sample.device)
+            # Inject dummy class labels if they aren’t provided
+            if 'class_labels' not in kwargs:
+                dummy_class_labels = torch.zeros(sample.shape[0], dtype=torch.long, device=sample.device)
+                kwargs['class_labels'] = dummy_class_labels
+            return original_forward(sample, timestep, **kwargs)
+
+        # Replace the forward method in the pipeline’s UNet with our wrapped version.
+        pipeline.unet.forward = wrapped_forward
+
+    # Use provided initial noise if available, otherwise use random noise
+    if initial_noise is not None:
+        # Use the scheduler's step method directly with the initial noise
+        latents = initial_noise
+        for t in pipeline.scheduler.timesteps:
+            # Get model prediction
+            noise_pred = pipeline.unet(latents, t).sample
+            # Get previous sample
+            latents = pipeline.scheduler.step(noise_pred, t, latents).prev_sample
+
+        # Convert latents to images
+        images = (latents / 2 + 0.5).clamp(0, 1)
+        images = images.cpu().permute(0, 2, 3, 1).numpy()
+        images = (images * 255).round().astype("uint8")
+        images = [Image.fromarray(image) for image in images]
+    else:
+        # Use standard pipeline generation
+        images = pipeline(
+            batch_size=batch_size,
+            generator=generator,
+            num_inference_steps=num_inference_steps
+        ).images
+
+    return images
+
+
 def generate_images_to_dir(
     pipeline,
     num_images: int,
