@@ -1,9 +1,12 @@
-# EEEM068-HumanFaces-Diffusion
-*EEEM068 - Coursework - Group 5*
+# Human Faces Generation with Diffusion Models - A multi-conditioning approach
 
 ## 1. Project Overview
 
 This repository contains an implementation of diffusion models for image generation, specifically focused on human faces.
+
+***Abstract:** We present a benchmark of diffusion models for human face generation on a small-scale CelebAMask-HQ dataset, evaluating both unconditional and conditional pipelines. Our study compares UNet and DiT architectures for unconditional generation and explores LoRA-based fine-tuning of pretrained Stable Diffusion models as a separate experiment. Building on the multi-conditioning approach of Giambi and Lisanti, which uses both attribute vectors and segmentation masks, our main contribution is the integration of an InfoNCE loss for attribute embedding and the adoption of a SegFormer-based segmentation encoder. These enhancements improve the semantic alignment and controllability of attribute-guided synthesis. Our results highlight the effectiveness of contrastive embedding learning and advanced segmentation encoding for controlled face generation in limited data settings.*
+
+- Tracked experiments can be found at: [this Weights & Biases project](https://wandb.ai/tin-hoang/EEEM068_Diffusion_Models?nw=nwusertinhoang)
 
 <p align="center">
   <img src="docs/Attributes_Diffusion_Pipeline.png" alt="Attributes Diffusion Pipeline"/>
@@ -439,12 +442,12 @@ You can change save paths, number of samples, and prompts by editing the script 
 
 ## 5. License
 
-This project is part of the EEEM068 Diffusion Models coursework at the University of Surrey.
+This project is part of the Applied Machine Learning coursework at the University of Surrey.
 We publish this code under the MIT license for educational purposes.
 
 ## 6. Contributors
 
-Group 5 - Project members:
+Project members:
 - [Enggen Sherpa​](https://github.com/enggen)
 - [Dhruvraj Singh Rawat​](https://github.com/dhruvraj-singh-rawat)
 - [Rishikesan Kirupanantha​](https://github.com/rishikesan19)
