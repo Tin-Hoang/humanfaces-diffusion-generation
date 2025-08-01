@@ -24,6 +24,14 @@ Overview of our proposed attribute-based diffusion pipeline for human faces gene
 Sample generated human faces through training epochs.
 </p>
 
+<p align="center">
+  <img src="docs/Sample_InfoNCE_visualisation.png" alt="Ablation Study on InfoNCE" width="512"/>
+</p>
+<p align="center">
+Ablation Study on InfoNCE: the "Without InfoNCE" images (middle) lack clarity, with blurred features, distorted proportions, and unnatural textures. The "With InfoNCE" images (right) are sharper, with better-defined facial features, more accurate attributes generation, and improved realism, though background integration and minor distortions remain issues in both sets.
+</p>
+
+
 ### Table of Contents
 
 1. [Project Overview](#1-project-overview)
