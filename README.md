@@ -1,5 +1,29 @@
 # Human Faces Generation with Diffusion Models - A multi-conditioning approach
 
+<p align="center">
+  <a href="https://www.python.org/downloads/">
+    <img src="https://img.shields.io/badge/python-3.11+-blue.svg?style=flat-square" alt="Python 3.11+">
+  </a>
+  <a href="https://pytorch.org/">
+    <img src="https://img.shields.io/badge/PyTorch-2.0+-red.svg?style=flat-square" alt="PyTorch 2.0+">
+  </a>
+  <a href="https://github.com/Tin-Hoang/EEEM068-Diffusion-Models/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square" alt="License: MIT">
+  </a>
+  <a href="https://huggingface.co/docs/diffusers">
+    <img src="https://img.shields.io/badge/Hugging%20Face-Diffusers-yellow.svg?style=flat-square" alt="Hugging Face Diffusers">
+  </a>
+  <a href="https://wandb.ai/tin-hoang/EEEM068_Diffusion_Models?nw=nwusertinhoang">
+    <img src="https://img.shields.io/badge/Weights%20%26%20Biases-Supported-green.svg?style=flat-square" alt="Weights & Biases Supported">
+  </a>
+    <a href="https://github.com/Tin-Hoang/EEEM068-Diffusion-Models/stargazers">
+    <img src="https://img.shields.io/github/stars/Tin-Hoang/EEEM068-Diffusion-Models?style=flat-square" alt="GitHub stars">
+  </a>
+  <a href="https://github.com/Tin-Hoang/EEEM068-Diffusion-Models/forks">
+    <img src="https://img.shields.io/github/forks/Tin-Hoang/EEEM068-Diffusion-Models?style=flat-square" alt="GitHub forks">
+  </a>
+</p>
+
 ## 1. Project Overview
 
 This repository contains an implementation of diffusion models for image generation, specifically focused on human faces.
