@@ -1,28 +1,17 @@
 # Human Faces Generation with Diffusion Models - A multi-conditioning approach
 
-<p align="center">
-  <a href="https://www.python.org/downloads/">
-    <img src="https://img.shields.io/badge/python-3.11+-blue.svg?style=flat-square" alt="Python 3.11+">
-  </a>
-  <a href="https://pytorch.org/">
-    <img src="https://img.shields.io/badge/PyTorch-2.0+-red.svg?style=flat-square" alt="PyTorch 2.0+">
-  </a>
-  <a href="https://github.com/Tin-Hoang/EEEM068-Diffusion-Models/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square" alt="License: MIT">
-  </a>
-  <a href="https://huggingface.co/docs/diffusers">
-    <img src="https://img.shields.io/badge/Hugging%20Face-Diffusers-yellow.svg?style=flat-square" alt="Hugging Face Diffusers">
-  </a>
-  <a href="https://wandb.ai/tin-hoang/EEEM068_Diffusion_Models?nw=nwusertinhoang">
-    <img src="https://img.shields.io/badge/Weights%20%26%20Biases-Supported-green.svg?style=flat-square" alt="Weights & Biases Supported">
-  </a>
-    <a href="https://github.com/Tin-Hoang/EEEM068-Diffusion-Models/stargazers">
-    <img src="https://img.shields.io/github/stars/Tin-Hoang/EEEM068-Diffusion-Models?style=flat-square" alt="GitHub stars">
-  </a>
-  <a href="https://github.com/Tin-Hoang/EEEM068-Diffusion-Models/forks">
-    <img src="https://img.shields.io/github/forks/Tin-Hoang/EEEM068-Diffusion-Models?style=flat-square" alt="GitHub forks">
-  </a>
-</p>
+<div align="center">
+
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange?style=flat-square&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square&logo=opensourceinitiative&logoColor=white)](https://github.com/Tin-Hoang/EEEM068-Diffusion-Models/blob/main/LICENSE)
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Diffusers-yellow?style=flat-square&logo=huggingface&logoColor=black)](https://huggingface.co/docs/diffusers)
+[![Weights & Biases](https://img.shields.io/badge/Weights%20%26%20Biases-Supported-orange?style=flat-square&logo=weightsandbiases&logoColor=white)](https://wandb.ai/tin-hoang/EEEM068_Diffusion_Models?nw=nwusertinhoang)
+[![arXiv](https://img.shields.io/badge/arXiv-2508.09847-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2508.09847)
+[![GitHub Stars](https://img.shields.io/github/stars/Tin-Hoang/EEEM068-Diffusion-Models?style=flat-square&logo=github&logoColor=white)](https://github.com/Tin-Hoang/EEEM068-Diffusion-Models/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/Tin-Hoang/EEEM068-Diffusion-Models?style=flat-square&logo=github&logoColor=white)](https://github.com/Tin-Hoang/EEEM068-Diffusion-Models/forks)
+
+</div>
 
 ## 1. Project Overview
 
