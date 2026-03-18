@@ -466,7 +466,23 @@ You can change save paths, number of samples, and prompts by editing the script 
 This project is part of the Applied Machine Learning coursework at the University of Surrey.
 We publish this code under the MIT license for educational purposes.
 
-## 6. Contributors
+## 6. Citation
+
+If you find this work useful, please cite our paper:
+
+```bibtex
+@misc{rawat2025enhancingdiffusionfacegeneration,
+      title={Enhancing Diffusion Face Generation with Contrastive Embeddings and SegFormer Guidance}, 
+      author={Dhruvraj Singh Rawat and Enggen Sherpa and Rishikesan Kirupanantha and Tin Hoang},
+      year={2025},
+      eprint={2508.09847},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2508.09847}, 
+}
+```
+
+## 7. Contributors
 
 Project members:
 - [Enggen Sherpa​](https://github.com/enggen)
